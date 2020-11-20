@@ -69,16 +69,19 @@ fc = k * c / (2 * np.pi)
 t0 = 2.5E-2
 sigma = 5E-4
 
-sigma_max = 2000 #Max amount of demping
+sigma_max_left = 1 #Max amount of demping left
+sigma_max_right = 2000 #Max amount of demping right
+sigma_max_up = 1 #Max amount of demping up
+
 hoogte_PML = 100 #Height from which wave starts damping
 breedte_PML_links = 10 #How much to the right of left simulation wall will wave start damping
 breedte_PML_rechts = 50 #How much to the left of right simulation wall will wave start damping
 sigma_x = np.zeros((nx + 1, ny))
 sigma_y = np.zeros((nx, ny + 1))
 
-sigma_x[-hoogte_PML:,:] = [[i*sigma_max/len(sigma_x[-hoogte_PML:,:])]*sigma_x.shape[1] for i in range(0,len(sigma_x[:hoogte_PML,:]),1)]
-sigma_y[:,:breedte_PML_links] = np.array([[i*sigma_max/len(sigma_y[:breedte_PML_links,:])]*sigma_y.shape[0] for i in range(len(sigma_y[:breedte_PML_links,:]),0,-1)]).transpose()
-sigma_y[:,len(sigma_y)-breedte_PML_rechts:] = np.array([[i*sigma_max/len(sigma_x[-breedte_PML_rechts:,:])]*sigma_x.shape[1] for i in range(0,len(sigma_x[:breedte_PML_rechts,:])+1,1)]).transpose()
+sigma_x[-hoogte_PML:,:] = [[i*sigma_max_up/len(sigma_x[-hoogte_PML:,:])]*sigma_x.shape[1] for i in range(0,len(sigma_x[:hoogte_PML,:]),1)]
+sigma_y[:,:breedte_PML_links] = np.array([[i*sigma_max_left/len(sigma_y[:breedte_PML_links,:])]*sigma_y.shape[0] for i in range(len(sigma_y[:breedte_PML_links,:]),0,-1)]).transpose()
+sigma_y[:,len(sigma_y)-breedte_PML_rechts:] = np.array([[i*sigma_max_right/len(sigma_x[-breedte_PML_rechts:,:])]*sigma_x.shape[1] for i in range(0,len(sigma_x[:breedte_PML_rechts,:])+1,1)]).transpose()
 
 
 # initialisatie snelheids- en drukvelden
