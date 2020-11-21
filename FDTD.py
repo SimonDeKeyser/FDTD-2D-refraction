@@ -59,7 +59,7 @@ def Simulation(dx,kd,dt,nt,obj,plot=False,save=False):
     else:
         raise ValueError('Choose obj: thin, freefield_thin, thick, freefield_thick,triangle,freefield_triangle')
     
-    npml = 10 #number of PML layers
+    npml = 25 #number of PML layers
     nx = npml + int(4*d / dx)  # number of cells in x direction
     ny = 2*npml + int(L / dy)  # number of cells in y direction
     nd = int(d / dx)  # number of cells in d length
@@ -88,19 +88,19 @@ def Simulation(dx,kd,dt,nt,obj,plot=False,save=False):
 
     # PML implementation
     sigma_max_left = 2000 #Max amount of damping left
-    sigma_max_right = 2000 #Max amount of damping right
+    sigma_max_right = 500 #Max amount of damping right
     sigma_max_up = 2000 #Max amount of damping upward
 
-    hoogte_PML = npml #Height from which wave starts damping (numbers of layers)
-    breedte_PML_links = npml #How much to the right of left simulation wall will wave start damping (numbers of layers)
-    breedte_PML_rechts = npml #How much to the left of right simulation wall will wave start damping (numbers of layers)
+    hoogte_PML = nx - int(2 * nd)+1 - 10 #Height from which wave starts damping (numbers of layers)
+    breedte_PML_links = y_bron // 2 #How much to the right of left simulation wall will wave start damping (numbers of layers)
+    breedte_PML_rechts = ny - y_recorder3 - 10 #How much to the left of right simulation wall will wave start damping (numbers of layers)
     sigma_x = np.zeros((nx + 1, ny))
     sigma_y = np.zeros((nx, ny + 1))
     m = 1 #Power of the PML (3 to 4), if too high, the sigma_max is too small
 
     sigma_x[-hoogte_PML:,:] = [[sigma_max_up*(i/len(sigma_x[-hoogte_PML:,:]))**m]*sigma_x.shape[1] for i in range(0,len(sigma_x[:hoogte_PML,:]),1)]
     sigma_y[:,:breedte_PML_links] = np.array([[sigma_max_left*(i/len(sigma_y[:breedte_PML_links,:]))**m]*sigma_y.shape[0] for i in range(len(sigma_y[:breedte_PML_links,:]),0,-1)]).transpose()
-    sigma_y[: ,breedte_PML_rechts: ] = np.array([[i]*sigma_y.shape[0] for i in range(0, sigma_y.shape[1]-breedte_PML_rechts, 1)]).transpose()
+    sigma_y[: ,breedte_PML_rechts: ] = np.array([[sigma_max_right*(i/len(sigma_y[breedte_PML_rechts:,:]))**m]*sigma_y.shape[0] for i in range(0, sigma_y.shape[1]-breedte_PML_rechts, 1)]).transpose()
 
     # initialisation of o and p fields
     ox = np.zeros((nx + 1, ny))
