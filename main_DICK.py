@@ -13,8 +13,8 @@ def step_SIT_SIP(nx, ny, c, dx, dy, dt):
     p_x[-1, :] = 0
     p_y[:, -1] = 0
     p_x[:, -1] = 0
-    p_x[:int(2 * nd)-1, int(2 * nd)] = 0 #Thin sheet
-    p_y[:int(2 * nd)-1, int(2 * nd)] = 0 #Thin sheet
+    p_x[:int(2 * nd), int(2 * nd)] = 0 #Thin sheet
+    p_y[:int(2 * nd), int(2 * nd)] = 0 #Thin sheet
 
     ox = ox*(1-dt*sigma_x) - dt * p_x
     oy = oy*(1-dt*sigma_y) - dt * p_y
