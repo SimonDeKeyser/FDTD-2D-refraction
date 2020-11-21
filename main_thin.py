@@ -13,7 +13,7 @@ nt = 600
 obj = 'thin' # Object to simulate
 
 # SIMULATION----------------------------------------------
-bront, rec = Simulation(dx,kd,dt,nt,obj)
+bront, rec = Simulation(dx,kd,dt,nt,obj,plot=True)
 bront, recfree = Simulation(dx,kd,dt,nt,'freefield_'+obj)
 
 # PLOT----------------------------------------------------
@@ -29,13 +29,8 @@ plt.legend()
 plt.grid()
 plt.show()
 
-# ANLYTICAL COMPARISON------------------------------------
+# ANALYTICAL COMPARISON------------------------------------
 bront = np.reshape(bront, (nt, )) #signal.TransferFunction requires vector
-TF = dict()
-for i in range(3):
-    rec = np.reshape(rec[i], (nt, ))
-    TF = signal.TransferFunction(rec[i],bront,dt=dt) - signal.TransferFunction(recfree[i],bront,dt=dt)
-    print(TF)
-    TF['recorder' + str(i+1)] = TF
-
-print(TF['recorder1'])
+TF_1 = signal.TransferFunction(rec[0]-recfree[0],bront,dt=dt)
+TF_2 = signal.TransferFunction(rec[1]-recfree[1],bront,dt=dt)
+TF_3 = signal.TransferFunction(rec[2]-recfree[2],bront,dt=dt)

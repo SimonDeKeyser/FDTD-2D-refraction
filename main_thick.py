@@ -10,7 +10,7 @@ kd=1
 CFL = 0.8  # Courant number
 dt = CFL / (c * np.sqrt((1 / dx ** 2) + (1 / dx ** 2)))  # time step
 nt = 600
-obj = 'triangle' # Object to simulate
+obj = 'thick' # Object to simulate
 
 # SIMULATION----------------------------------------------
 bront, rec = Simulation(dx,kd,dt,nt,obj)
@@ -34,5 +34,3 @@ bront = np.reshape(bront, (nt, )) #signal.TransferFunction requires vector
 TF_1 = signal.TransferFunction(rec[0]-recfree[0],bront,dt=dt)
 TF_2 = signal.TransferFunction(rec[1]-recfree[1],bront,dt=dt)
 TF_3 = signal.TransferFunction(rec[2]-recfree[2],bront,dt=dt)
-
-print(TF_1.den)
