@@ -52,9 +52,9 @@ def Simulation(dx,kd,dt,nt,obj,plot=False,save=False):
     else:
         raise ValueError('Choose obj: thin, freefield_thin, thick, freefield_thick')
     
-    nx = int(4*d / dx)  # aantal cellen in x richting - number of cells in x direction
-    ny = int(L / dy)  # aantal cellen in y richting - number of cells in y direction
-    nd = int(d / dx)  # aantal cellen in lengte d
+    nx = int(4*d / dx)  # number of cells in x direction
+    ny = int(L / dy)  # number of cells in y direction
+    nd = int(d / dx)  # number of cells in d length
 
     # location of source(central) and receivers
     x_bron = int(nd / 10)
@@ -83,9 +83,9 @@ def Simulation(dx,kd,dt,nt,obj,plot=False,save=False):
     sigma_max_right = 100 #Max amount of damping right
     sigma_max_up = 2000 #Max amount of damping upward
 
-    hoogte_PML = 40 #Height from which wave starts damping (numbers of layers)
-    breedte_PML_links = 10 #How much to the right of left simulation wall will wave start damping (numbers of layers)
-    breedte_PML_rechts = 40 #How much to the left of right simulation wall will wave start damping (numbers of layers)
+    hoogte_PML = 20 #Height from which wave starts damping (numbers of layers)
+    breedte_PML_links = 20 #How much to the right of left simulation wall will wave start damping (numbers of layers)
+    breedte_PML_rechts = 20 #How much to the left of right simulation wall will wave start damping (numbers of layers)
     sigma_x = np.zeros((nx + 1, ny))
     sigma_y = np.zeros((nx, ny + 1))
     m = 1 #Power of the PML (3 to 4), if too high, the sigma_max is too small
@@ -136,15 +136,14 @@ def Simulation(dx,kd,dt,nt,obj,plot=False,save=False):
         bron = A * np.sin(2 * np.pi * fc * (t - t0)) * np.exp(-((t - t0) ** 2) / (sigma))  # update source for new time
         bront[it,0] = bron
         p[x_bron, y_bron] = p[x_bron, y_bron] + bron  # adding source term to propagation
-
+        Step(nx, ny, c, dx, dy, dt,obj)  # propagate over one time step
         if obj == 'thin':
-            Step(nx, ny, c, dx, dy, dt,obj)  # propagate over one time step
             ox[:int(2 * nd), int(2 * nd)] = 0  # thin sheet
             oy[:int(2 * nd), int(2 * nd)] = 0  # thin sheet
         elif obj == 'thick':
-            Step(nx, ny, c, dx, dy, dt,obj)  # propagate over one time step
             ox[:int(2 * nd), int(2 * nd):int(3 * nd)] = 0  # Thick object
             oy[:int(2 * nd), int(2 * nd):int(3 * nd)] = 0  # Thick object
+
         ox[0, :] = 0  # ground
         oy[0, :] = 0  # ground
 
