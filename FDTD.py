@@ -5,7 +5,7 @@ import matplotlib.patches as patches
 from PIL import Image
 
 def Step(nx, ny, c, dx, dy, dt, obj):
-    global ox, oy, p, nd, sigma_x, sigma_y
+    global ox, oy, p, nd, sigma_x, sigma_y, npml
     p_y = (np.append(p, p[:, 0].reshape((nx, 1)), axis=1) - np.append(p[:, -1].reshape((nx, 1)), p, axis=1)) / dy
     p_x = (np.append(p, p[0, :].reshape((1, ny)), axis=0) - np.append(p[-1, :].reshape((1, ny)), p, axis=0)) / dx
 
@@ -15,11 +15,11 @@ def Step(nx, ny, c, dx, dy, dt, obj):
     p_x[:, -1] = 0 #No periodic boundaries
 
     if obj == 'thin':
-        p_x[:int(2 * nd)+1, int(2 * nd)] = 0 #Thin sheet
-        p_y[:int(2 * nd)+1, int(2 * nd)] = 0 #Thin sheet
+        p_x[:int(2 * nd)+1, int(2 * nd)+npml] = 0 #Thin sheet
+        p_y[:int(2 * nd)+1, int(2 * nd)+npml] = 0 #Thin sheet
     elif obj == 'thick':
-        p_x[:int(2 * nd)+1, int(2 * nd): int(3 * nd)+1] = 0 #Thick object
-        p_y[:int(2 * nd)+1, int(2 * nd): int(3 * nd)+1] = 0 #Thick object
+        p_x[:int(2 * nd)+1, int(2 * nd)+npml: int(3 * nd)+1+npml] = 0 #Thick object
+        p_y[:int(2 * nd)+1, int(2 * nd)+npml: int(3 * nd)+1+npml] = 0 #Thick object
     ox = ox*(1-dt*sigma_x) - dt * p_x
     oy = oy*(1-dt*sigma_y) - dt * p_y
     ox_x = (ox[1:, :] - ox[:-1, :]) / dx
@@ -37,9 +37,9 @@ def Simulation(dx,kd,dt,nt,obj,plot=False,save=False):
     dx, kd, nt, obj : space discretisation, k*d, #timesteps, object: ['thin',freefield_thin', 'thick', 'freefield_thick']
     Returns
     -------
-    bront, rec1, rec2, rec3 : Source, wave recorded at three postions 
+    bront, [rec1, rec2, rec3] : Source, list of wave recorded at three postions 
     """
-    global ox, oy, p, nd, sigma_x, sigma_y
+    global ox, oy, p, nd, sigma_x, sigma_y, npml
     # INITIALISATION 2D-GRID AND SIMULATION PARAMETERS-------------------------
     c = 340  # geluidssnelheid - speed of sound (wave speed)
     dy = dx
@@ -52,13 +52,14 @@ def Simulation(dx,kd,dt,nt,obj,plot=False,save=False):
     else:
         raise ValueError('Choose obj: thin, freefield_thin, thick, freefield_thick')
     
-    nx = int(4*d / dx)  # number of cells in x direction
-    ny = int(L / dy)  # number of cells in y direction
+    npml = 10 #number of PML layers
+    nx = npml + int(4*d / dx)  # number of cells in x direction
+    ny = 2*npml + int(L / dy)  # number of cells in y direction
     nd = int(d / dx)  # number of cells in d length
 
     # location of source(central) and receivers
     x_bron = int(nd / 10)
-    y_bron = nd
+    y_bron = npml + nd
 
     x_recorder1 = int(nd / 2)
     if obj == 'thin' or obj =='freefield_thin':
@@ -80,12 +81,12 @@ def Simulation(dx,kd,dt,nt,obj,plot=False,save=False):
 
     # PML implementation
     sigma_max_left = 2000 #Max amount of damping left
-    sigma_max_right = 100 #Max amount of damping right
+    sigma_max_right = 2000 #Max amount of damping right
     sigma_max_up = 2000 #Max amount of damping upward
 
-    hoogte_PML = 20 #Height from which wave starts damping (numbers of layers)
-    breedte_PML_links = 20 #How much to the right of left simulation wall will wave start damping (numbers of layers)
-    breedte_PML_rechts = 20 #How much to the left of right simulation wall will wave start damping (numbers of layers)
+    hoogte_PML = npml #Height from which wave starts damping (numbers of layers)
+    breedte_PML_links = npml #How much to the right of left simulation wall will wave start damping (numbers of layers)
+    breedte_PML_rechts = npml #How much to the left of right simulation wall will wave start damping (numbers of layers)
     sigma_x = np.zeros((nx + 1, ny))
     sigma_y = np.zeros((nx, ny + 1))
     m = 1 #Power of the PML (3 to 4), if too high, the sigma_max is too small
@@ -113,22 +114,22 @@ def Simulation(dx,kd,dt,nt,obj,plot=False,save=False):
         fig, ax = plt.subplots()
         plt.xlabel('x/d')
         plt.ylabel('y/d')
-        plt.ylim([1, 4*nd])
-        plt.xlim([1, ny + 1])
+        plt.ylim([1, nx])
+        plt.xlim([1, ny])
         ax.set_yticks(np.linspace(0,4*nd,5))
         ax.set_yticklabels(np.arange(5))
         if obj == 'thin' or obj =='freefield_thin':
-            ax.set_xticks(np.linspace(0,ny,7))
+            ax.set_xticks(npml + nd*np.arange(7))
             ax.set_xticklabels(np.arange(7))
             movie = []
         elif obj == 'thick' or obj =='freefield_thick':
-            ax.set_xticks(np.linspace(0,ny,8))
+            ax.set_xticks(npml + nd*np.arange(8))
             ax.set_xticklabels(np.arange(8))
             movie = []
             if obj == 'freefield_thick':
-                rect = patches.Rectangle((int(2 * nd)-dx,-dx),nd+dx,2*nd+dx,fill=False,ls= ':')
+                rect = patches.Rectangle((int(2 * nd)+npml,0),nd+dx,2*nd+dx,fill=False,ls= ':')
             else:
-                rect = patches.Rectangle((int(2 * nd)-dx,-dx),nd+dx,2*nd+dx,facecolor='k')
+                rect = patches.Rectangle((int(2 * nd)+npml,0),nd+dx,2*nd+dx,facecolor='k')
     for it in range(0, nt):
         t = it * dt
         print('%d/%d' % (it, nt))
@@ -138,11 +139,11 @@ def Simulation(dx,kd,dt,nt,obj,plot=False,save=False):
         p[x_bron, y_bron] = p[x_bron, y_bron] + bron  # adding source term to propagation
         Step(nx, ny, c, dx, dy, dt,obj)  # propagate over one time step
         if obj == 'thin':
-            ox[:int(2 * nd), int(2 * nd)] = 0  # thin sheet
-            oy[:int(2 * nd), int(2 * nd)] = 0  # thin sheet
+            ox[:int(2 * nd), int(2 * nd)+npml] = 0  # thin sheet
+            oy[:int(2 * nd), int(2 * nd)+npml] = 0  # thin sheet
         elif obj == 'thick':
-            ox[:int(2 * nd), int(2 * nd):int(3 * nd)] = 0  # Thick object
-            oy[:int(2 * nd), int(2 * nd):int(3 * nd)] = 0  # Thick object
+            ox[:int(2 * nd), int(2 * nd)+npml:int(3 * nd)+npml] = 0  # Thick object
+            oy[:int(2 * nd), int(2 * nd)+npml:int(3 * nd)+npml] = 0  # Thick object
 
         ox[0, :] = 0  # ground
         oy[0, :] = 0  # ground
@@ -155,9 +156,9 @@ def Simulation(dx,kd,dt,nt,obj,plot=False,save=False):
             # presenting the p field
             if obj=='thin' or obj =='freefield_thin':
                 if obj == 'freefield_thin':
-                    obj_plot = ax.plot(np.full(np.arange(int(2 * nd)).shape, int(2 * nd)), np.arange(int(2 * nd)), color='k',ls=':',linewidth=60*dx)[0]
+                    obj_plot = ax.plot(np.full(np.arange(int(2 * nd)).shape, int(2 * nd)+npml), np.arange(int(2 * nd)), color='k',ls=':',linewidth=60*dx)[0]
                 else:
-                    obj_plot = ax.plot(np.full(np.arange(int(2 * nd)).shape, int(2 * nd)), np.arange(int(2 * nd)), color='k',linewidth=60*dx)[0]
+                    obj_plot = ax.plot(np.full(np.arange(int(2 * nd)).shape, int(2 * nd)+npml), np.arange(int(2 * nd)), color='k',linewidth=60*dx)[0]
             elif obj =='thick' or obj == 'freefield_thick':
                 obj_plot = ax.add_patch(rect) 
             artists = [
@@ -180,4 +181,4 @@ def Simulation(dx,kd,dt,nt,obj,plot=False,save=False):
             my_anim.save('{}_kd={}.gif'.format(obj,kd),writer='pillow',fps=30)
         if plot:
             plt.show()
-    return bront,recorder1,recorder2,recorder3
+    return bront,[recorder1,recorder2,recorder3]
