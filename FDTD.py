@@ -4,8 +4,8 @@ from matplotlib.animation import ArtistAnimation
 import matplotlib.patches as patches
 from PIL import Image
 
-def step_SIT_SIP(nx, ny, c, dx, dy, dt):
-    global ox, oy, p
+def step_thick(nx, ny, c, dx, dy, dt):
+    global ox, oy, p, nd, sigma_x, sigma_y
     p_y = (np.append(p, p[:, 0].reshape((nx, 1)), axis=1) - np.append(p[:, -1].reshape((nx, 1)), p, axis=1)) / dy
     p_x = (np.append(p, p[0, :].reshape((1, ny)), axis=0) - np.append(p[-1, :].reshape((1, ny)), p, axis=0)) / dx
 
@@ -23,14 +23,42 @@ def step_SIT_SIP(nx, ny, c, dx, dy, dt):
 
     p = p - (c ** 2) * dt * (ox_x + oy_y)
 
-def Sim_thin(dx,kd,plot=False,save=False):
+def step_thin(nx, ny, c, dx, dy, dt):
+    global ox, oy, p, nd, sigma_x, sigma_y
+    p_y = (np.append(p, p[:, 0].reshape((nx, 1)), axis=1) - np.append(p[:, -1].reshape((nx, 1)), p, axis=1)) / dy
+    p_x = (np.append(p, p[0, :].reshape((1, ny)), axis=0) - np.append(p[-1, :].reshape((1, ny)), p, axis=0)) / dx
+
+    p_y[-1, :] = 0 #No periodic boundaries
+    p_x[-1, :] = 0 #No periodic boundaries
+    p_y[:, -1] = 0 #No periodic boundaries
+    p_x[:, -1] = 0 #No periodic boundaries
+    p_x[:int(2 * nd)+1, int(2 * nd)] = 0 #Thin sheet
+    p_y[:int(2 * nd)+1, int(2 * nd)] = 0 #Thin sheet
+
+    ox = ox*(1-dt*sigma_x) - dt * p_x
+    oy = oy*(1-dt*sigma_y) - dt * p_y
+    ox_x = (ox[1:, :] - ox[:-1, :]) / dx
+    oy_y = (oy[:, 1:] - oy[:, :-1]) / dy
+
+    p = p - (c ** 2) * dt * (ox_x + oy_y)
+
+def Sim_thin(dx,kd,nt,plot=False,save=False):
+    """
+    This function simulates the scattering of a 2D wave around an infinitely thin sheet and 
+    returns the recorded pressure in 3 observers.
+
+    Parameters
+    ----------
+    dx, kd, nt : space discretisation, k*d, #timesteps 
+    Returns
+    -------
+    rec1, rec2, rec3 : Wave recorded at three postions 
+    """
     global ox, oy, p, nd, sigma_x, sigma_y
     # INITIALISATION 2D-GRID AND SIMULATION PARAMETERS-------------------------
     c = 340  # geluidssnelheid - speed of sound (wave speed)
-    dx = 0.05  # ruimtelijke discretisatiestap - spatial discretisation step
     dy = dx
 
-    kd = 1  # frequentie-lengte
     d = 1  # lengte d
     k = kd / d  # wavenumber
     L = 6 * d  # length of simulation domain
@@ -40,10 +68,7 @@ def Sim_thin(dx,kd,plot=False,save=False):
     nd = int(d / dx)  # aantal cellen in lengte d
 
     CFL = 0.8  # Courant getal - Courant number
-
     dt = CFL / (c * np.sqrt((1 / dx ** 2) + (1 / dy ** 2)))  # tijdstap - time step
-
-    nt = 6*int(40 // CFL)  #Number of time steps
 
     # location of source(central) and receivers
     x_bron = int(nd / 10)
@@ -96,16 +121,17 @@ def Sim_thin(dx,kd,plot=False,save=False):
     bron = 0
 
     # TIME ITTERATION----------------------------------------------------
-    fig, ax = plt.subplots()
-    plt.xlabel('x/d')
-    plt.ylabel('y/d')
-    plt.ylim([1, 4*nd])
-    plt.xlim([1, ny + 1])
-    ax.set_yticks(np.linspace(0,4*nd,5))
-    ax.set_yticklabels(np.arange(5))
-    ax.set_xticks(np.linspace(0,ny,7))
-    ax.set_xticklabels(np.arange(7))
-    movie = []
+    if plot or save:
+        fig, ax = plt.subplots()
+        plt.xlabel('x/d')
+        plt.ylabel('y/d')
+        plt.ylim([1, 4*nd])
+        plt.xlim([1, ny + 1])
+        ax.set_yticks(np.linspace(0,4*nd,5))
+        ax.set_yticklabels(np.arange(5))
+        ax.set_xticks(np.linspace(0,ny,7))
+        ax.set_xticklabels(np.arange(7))
+        movie = []
     for it in range(0, nt):
         t = (it - 1) * dt
         tijdreeks[it, 0] = t
@@ -114,7 +140,7 @@ def Sim_thin(dx,kd,plot=False,save=False):
         bron = A * np.sin(2 * np.pi * fc * (t - t0)) * np.exp(-((t - t0) ** 2) / (sigma))  # bron updaten bij nieuw tijd - update source for new time
 
         p[x_bron, y_bron] = p[x_bron, y_bron] + bron  # druk toevoegen bij de drukvergelijking op bronlocatie - adding source term to propagation
-        step_SIT_SIP(nx, ny, c, dx, dy, dt)  # propagatie over 1 tijdstap - propagate over one time step
+        step_thin(nx, ny, c, dx, dy, dt)  # propagatie over 1 tijdstap - propagate over one time step
         ox[:int(2 * nd), int(2 * nd)] = 0  # thin sheet
         oy[:int(2 * nd), int(2 * nd)] = 0  # thin sheet
         ox[0, :] = 0  # ground
@@ -124,40 +150,47 @@ def Sim_thin(dx,kd,plot=False,save=False):
         recorder2[it] = p[x_recorder2, y_recorder2]
         recorder3[it] = p[x_recorder3, y_recorder3]
 
-        # presenting the p field
-
-        # view(0,90)
-        # shading interp
-        artists = [
-            ax.text(0.5, 1.05, '%d/%d' % (it, nt),
-                    size=plt.rcParams["axes.titlesize"],
-                    ha="center", transform=ax.transAxes),
-            ax.imshow(p, vmin=-0.02 * A, vmax=0.02 * A),
-            ax.plot(y_bron, x_bron, 'ks', fillstyle="none")[0],
-            ax.plot(y_recorder1, x_recorder1, 'ro', fillstyle="none")[0],
-            ax.plot(y_recorder2, x_recorder2, 'ro', fillstyle="none")[0],
-            ax.plot(y_recorder3, x_recorder3, 'ro', fillstyle="none")[0],
-            ax.plot(np.full(np.arange(int(2 * nd)).shape, int(2 * nd)), np.arange(int(2 * nd)), color='k',linewidth=60*dx)[0]
-        ]
-        movie.append(artists)
+        if plot or save:
+            # presenting the p field
+            artists = [
+                ax.text(0.5, 1.05, '%d/%d' % (it, nt),
+                        size=plt.rcParams["axes.titlesize"],
+                        ha="center", transform=ax.transAxes),
+                ax.imshow(p, vmin=-0.02 * A, vmax=0.02 * A),
+                ax.plot(y_bron, x_bron, 'ks', fillstyle="none")[0],
+                ax.plot(y_recorder1, x_recorder1, 'ro', fillstyle="none")[0],
+                ax.plot(y_recorder2, x_recorder2, 'ro', fillstyle="none")[0],
+                ax.plot(y_recorder3, x_recorder3, 'ro', fillstyle="none")[0],
+                ax.plot(np.full(np.arange(int(2 * nd)).shape, int(2 * nd)), np.arange(int(2 * nd)), color='k',linewidth=60*dx)[0]
+            ]
+            movie.append(artists)
 
         # mov(it) = getframe #wegcommentarieren voor simulatie vlugger te laten lopen - if this line is removed simulation runs much faster
-    my_anim = ArtistAnimation(fig, movie, interval=50, repeat_delay=1000,
+    if plot or save:
+        my_anim = ArtistAnimation(fig, movie, interval=50, repeat_delay=1000,
                             blit=True)
-    if save:
-        my_anim.save('Thin_kd={}.gif'.format(kd),writer='pillow',fps=30)
-    if plot:
-        plt.show()
+        if save:
+            my_anim.save('Thin_kd={}.gif'.format(kd),writer='pillow',fps=30)
+        if plot:
+            plt.show()
     return recorder1,recorder2,recorder3
 
-def Sim_thick(dx,kd,plot=False,save=False):
+def Sim_thick(dx,kd,nt,plot=False,save=False):
+    """
+    This function simulates the scattering of a 2D wave around a thick object and returns the recorded pressure in 3 observers.
+
+    Parameters
+    ----------
+    dx, kd, nt : space discretisation, k*d, #timesteps 
+    Returns
+    -------
+    rec1, rec2, rec3 : Wave recorded at three postions 
+    """
     global ox, oy, p, nd, sigma_x, sigma_y
     # INITIALISATION 2D-GRID AND SIMULATION PARAMETERS-------------------------
     c = 340  # speed of sound (wave speed)
-    dx = 0.05  # spatial discretisation step
     dy = dx
 
-    kd = 1  # frequentie-lengte
     d = 1  # lengte d
     k = kd / d  # wavenumber
     L = 7 * d  # length of simulation domain
@@ -167,10 +200,7 @@ def Sim_thick(dx,kd,plot=False,save=False):
     nd = int(d / dx)  # aantal cellen in lengte d
 
     CFL = 0.8  # Courant number
-
     dt = CFL / (c * np.sqrt((1 / dx ** 2) + (1 / dy ** 2)))  # time step
-
-    nt = 6*int(40 // CFL)  # number of time steps
 
     # location of source(central) and receivers
     x_bron = int(nd / 10)
@@ -222,17 +252,18 @@ def Sim_thick(dx,kd,plot=False,save=False):
     bron = 0
 
     # TIME ITTERATION----------------------------------------------------
-    fig, ax = plt.subplots()
-    plt.xlabel('x/d')
-    plt.ylabel('y/d')
-    plt.ylim([1, 4*nd])
-    plt.xlim([1, ny + 1])
-    ax.set_yticks(np.linspace(0,4*nd,5))
-    ax.set_yticklabels(np.arange(5))
-    ax.set_xticks(np.linspace(0,ny,8))
-    ax.set_xticklabels(np.arange(8))
-    movie = []
-    rect = patches.Rectangle((int(2 * nd)-dx,-dx),nd+dx,2*nd+dx,facecolor='k')
+    if plot or save:
+        fig, ax = plt.subplots()
+        plt.xlabel('x/d')
+        plt.ylabel('y/d')
+        plt.ylim([1, 4*nd])
+        plt.xlim([1, ny + 1])
+        ax.set_yticks(np.linspace(0,4*nd,5))
+        ax.set_yticklabels(np.arange(5))
+        ax.set_xticks(np.linspace(0,ny,8))
+        ax.set_xticklabels(np.arange(8))
+        movie = []
+        rect = patches.Rectangle((int(2 * nd)-dx,-dx),nd+dx,2*nd+dx,facecolor='k')
     for it in range(0, nt):
         t = (it - 1) * dt
         tijdreeks[it, 0] = t
@@ -241,7 +272,7 @@ def Sim_thick(dx,kd,plot=False,save=False):
         bron = A * np.sin(2 * np.pi * fc * (t - t0)) * np.exp(-((t - t0) ** 2) / (sigma))  # bron updaten bij nieuw tijd - update source for new time
 
         p[x_bron, y_bron] = p[x_bron, y_bron] + bron  # druk toevoegen bij de drukvergelijking op bronlocatie - adding source term to propagation
-        step_SIT_SIP(nx, ny, c, dx, dy, dt)  # propagatie over 1 tijdstap - propagate over one time step
+        step_thick(nx, ny, c, dx, dy, dt)  # propagatie over 1 tijdstap - propagate over one time step
         ox[:int(2 * nd), int(2 * nd):int(3 * nd)] = 0  # Thick object
         oy[:int(2 * nd), int(2 * nd):int(3 * nd)] = 0  # Thick object
 
@@ -252,28 +283,26 @@ def Sim_thick(dx,kd,plot=False,save=False):
         recorder2[it] = p[x_recorder2, y_recorder2]
         recorder3[it] = p[x_recorder3, y_recorder3]
 
-        # presenting the p field
+        if plot or save:
+            # presenting the p field
+            artists = [
+                ax.text(0.5, 1.05, '%d/%d' % (it, nt),
+                        size=plt.rcParams["axes.titlesize"],
+                        ha="center", transform=ax.transAxes, ),
+                ax.imshow(p, vmin=-0.02 * A, vmax=0.02 * A),
+                ax.plot(y_bron, x_bron, 'ks', fillstyle="none")[0],
+                ax.plot(y_recorder1, x_recorder1, 'ro', fillstyle="none")[0],
+                ax.plot(y_recorder2, x_recorder2, 'ro', fillstyle="none")[0],
+                ax.plot(y_recorder3, x_recorder3, 'ro', fillstyle="none")[0],
+                ax.add_patch(rect),
+            ]
+            movie.append(artists)
 
-        # view(0,90)
-        # shading interp
-        artists = [
-            ax.text(0.5, 1.05, '%d/%d' % (it, nt),
-                    size=plt.rcParams["axes.titlesize"],
-                    ha="center", transform=ax.transAxes, ),
-            ax.imshow(p, vmin=-0.02 * A, vmax=0.02 * A),
-            ax.plot(y_bron, x_bron, 'ks', fillstyle="none")[0],
-            ax.plot(y_recorder1, x_recorder1, 'ro', fillstyle="none")[0],
-            ax.plot(y_recorder2, x_recorder2, 'ro', fillstyle="none")[0],
-            ax.plot(y_recorder3, x_recorder3, 'ro', fillstyle="none")[0],
-            ax.add_patch(rect),
-        ]
-        movie.append(artists)
-
-        # mov(it) = getframe #wegcommentarieren voor simulatie vlugger te laten lopen - if this line is removed simulation runs much faster
-    my_anim = ArtistAnimation(fig, movie, interval=50, repeat_delay=1000,
-                            blit=True)
-    if save:
-        my_anim.save('Thick_kd={}.gif'.format(kd),writer='pillow',fps=30)
-    if plot:
-        plt.show()
+    if plot or save:
+        my_anim = ArtistAnimation(fig, movie, interval=50, repeat_delay=1000,
+                                blit=True)
+        if save:
+            my_anim.save('Thick_kd={}.gif'.format(kd),writer='pillow',fps=30)
+        if plot:
+            plt.show()
     return recorder1, recorder2, recorder3
