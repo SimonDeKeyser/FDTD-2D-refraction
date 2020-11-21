@@ -20,6 +20,13 @@ def Step(nx, ny, c, dx, dy, dt, obj):
     elif obj == 'thick':
         p_x[:int(2 * nd)+1, int(2 * nd)+npml: int(3 * nd)+1+npml] = 0 #Thick object
         p_y[:int(2 * nd)+1, int(2 * nd)+npml: int(3 * nd)+1+npml] = 0 #Thick object
+    elif obj == 'triangle':
+        for i in range(0, int(nd/2) + 1):
+            p_x[0: 4 * i, 2*nd + i + npml] = 0  # half triangle
+            p_y[0: 4 * i, 2*nd + i + npml] = 0  # half triangle
+            p_x[0: 4 * i, 3*nd - i + npml] = 0  # half triangle
+            p_y[0: 4 * i, 3*nd - i + npml] = 0  # half triangle
+
     ox = ox*(1-dt*sigma_x) - dt * p_x
     oy = oy*(1-dt*sigma_y) - dt * p_y
     ox_x = (ox[1:, :] - ox[:-1, :]) / dx
@@ -34,7 +41,7 @@ def Simulation(dx,kd,dt,nt,obj,plot=False,save=False):
 
     Parameters
     ----------
-    dx, kd, nt, obj : space discretisation, k*d, #timesteps, object: ['thin',freefield_thin', 'thick', 'freefield_thick']
+    dx, kd, nt, obj : space discretisation, k*d, #timesteps, object: ['thin',freefield_thin', 'thick', 'freefield_thick','triangle',freefield_triangle]
     Returns
     -------
     bront, [rec1, rec2, rec3] : Source, list of wave recorded at three postions 
@@ -47,10 +54,10 @@ def Simulation(dx,kd,dt,nt,obj,plot=False,save=False):
     k = kd / d  # wavenumber
     if obj == 'thin' or obj =='freefield_thin':
         L = 6 * d  # length of simulation domain
-    elif obj == 'thick' or obj =='freefield_thick':
+    elif obj == 'thick' or obj =='freefield_thick' or obj =='triangle' or obj =='freefield_triangle':
         L = 7*d
     else:
-        raise ValueError('Choose obj: thin, freefield_thin, thick, freefield_thick')
+        raise ValueError('Choose obj: thin, freefield_thin, thick, freefield_thick,triangle,freefield_triangle')
     
     npml = 10 #number of PML layers
     nx = npml + int(4*d / dx)  # number of cells in x direction
@@ -64,7 +71,7 @@ def Simulation(dx,kd,dt,nt,obj,plot=False,save=False):
     x_recorder1 = int(nd / 2)
     if obj == 'thin' or obj =='freefield_thin':
         y_recorder1 = y_bron + 2 * nd  # Location receiver 1
-    elif obj == 'thick' or obj =='freefield_thick':
+    elif obj == 'thick' or obj =='freefield_thick' or obj =='triangle' or obj =='freefield_triangle':
         y_recorder1 = y_bron + 3 * nd  # Location receiver 1
 
     x_recorder2 = int(nd / 2)
@@ -130,6 +137,15 @@ def Simulation(dx,kd,dt,nt,obj,plot=False,save=False):
                 rect = patches.Rectangle((int(2 * nd)+npml,0),nd+dx,2*nd+dx,fill=False,ls= ':')
             else:
                 rect = patches.Rectangle((int(2 * nd)+npml,0),nd+dx,2*nd+dx,facecolor='k')
+        elif obj == 'triangle' or obj =='freefield_triangle':
+            ax.set_xticks(npml + nd*np.arange(8))
+            ax.set_xticklabels(np.arange(8))
+            movie = []
+            vert = np.array([(int(2 * nd)+npml,0),(int(5 * nd/2)+npml,int(2*nd)),(int(3 * nd)+npml,0)])
+            if obj == 'freefield_triangle':
+                tr = patches.Polygon(vert,closed=True,fill=False,ls=':')
+            elif obj == 'triangle':
+                tr = patches.Polygon(vert,closed=True,facecolor='k')
     for it in range(0, nt):
         t = it * dt
         print('%d/%d' % (it, nt))
@@ -144,7 +160,12 @@ def Simulation(dx,kd,dt,nt,obj,plot=False,save=False):
         elif obj == 'thick':
             ox[:int(2 * nd), int(2 * nd)+npml:int(3 * nd)+npml] = 0  # Thick object
             oy[:int(2 * nd), int(2 * nd)+npml:int(3 * nd)+npml] = 0  # Thick object
-
+        elif obj == 'triangle':
+            for i in range(0, int(nd/2) + 1):
+                ox[: 4 * i, 2*nd + i + npml] = 0  # half triangle
+                oy[: 4 * i, 2*nd + i + npml] = 0  # half triangle
+                ox[: 4 * i, 3*nd - i + npml] = 0  # half triangle
+                oy[: 4 * i, 3*nd - i + npml] = 0  # half triangle
         ox[0, :] = 0  # ground
         oy[0, :] = 0  # ground
 
@@ -161,6 +182,8 @@ def Simulation(dx,kd,dt,nt,obj,plot=False,save=False):
                     obj_plot = ax.plot(np.full(np.arange(int(2 * nd)).shape, int(2 * nd)+npml), np.arange(int(2 * nd)), color='k',linewidth=60*dx)[0]
             elif obj =='thick' or obj == 'freefield_thick':
                 obj_plot = ax.add_patch(rect) 
+            elif obj =='triangle' or obj == 'freefield_triangle':
+                obj_plot = ax.add_patch(tr) 
             artists = [
                 ax.text(0.5, 1.05, '%d/%d' % (it, nt),
                         size=plt.rcParams["axes.titlesize"],
@@ -179,6 +202,7 @@ def Simulation(dx,kd,dt,nt,obj,plot=False,save=False):
                             blit=True)
         if save:
             my_anim.save('{}_kd={}.gif'.format(obj,kd),writer='pillow',fps=30)
+            plt.close()
         if plot:
             plt.show()
     return bront,[recorder1,recorder2,recorder3]
