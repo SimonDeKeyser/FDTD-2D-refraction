@@ -33,8 +33,8 @@ def Step(nx, ny, c, dx, dy, dt, obj):
     ox_x = (ox[1:, :] - ox[:-1, :]) / dx
     oy_y = (oy[:, 1:] - oy[:, :-1]) / dy
 
-    p = p - (c ** 2) * dt * (ox_x + oy_y) - (sigma_p_y + sigma_p_x) * p * dt + auxiliary*dt
-    auxiliary = - (c ** 2) * dt * (sigma_p_x * oy_y + sigma_p_y * ox_x)
+    p = p - (c ** 2) * dt * (ox_x + oy_y) - (sigma_p_y + sigma_p_x) * p * dt #+ auxiliary*dt , not needed at the moment
+    #auxiliary = - (c ** 2) * dt * (sigma_p_x * oy_y + sigma_p_y * ox_x)
 def Simulation(dx, kd, dt, nt, obj, plot=False, save=False):
     """
     This function simulates the scattering of a 2D wave around an infinitely thin sheet and
