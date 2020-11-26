@@ -119,12 +119,12 @@ class FDTD():
         self.p = np.zeros((self.nx, self.ny))
 
         ## Timeseries
-        self.recorder1 = np.zeros((self.nt, 1))
-        self.recorder2 = np.zeros((self.nt, 1))
-        self.recorder3 = np.zeros((self.nt, 1))
+        self.recorder1 = np.zeros(self.nt)
+        self.recorder2 = np.zeros(self.nt)
+        self.recorder3 = np.zeros(self.nt)
 
-        self.bront = np.zeros((self.nt, 1))
-        self.tijdreeks = np.zeros((self.nt, 1))
+        self.bront = np.zeros(self.nt)
+        self.tijdreeks = np.zeros(self.nt)
         return self
 
     ## RUN SIMULATION--------------------------------------------
@@ -135,11 +135,11 @@ class FDTD():
             self.animation_init()
         for it in range(0, self.nt):
             t = it * self.dt
-            self.tijdreeks[it,0] = t
+            self.tijdreeks[it] = t
             print('%d/%d' % (it, self.nt))
 
             bron = self.A * np.cos(2 * np.pi * self.fc * (t - self.t0)) * np.exp(-((t - self.t0) ** 2) / (2*self.sigma))  # update source for new time
-            self.bront[it, 0] = bron
+            self.bront[it] = bron
             self.p[self.x_bron, self.y_bron] += bron  # adding source term to propagation
             
             self.timestep() # propagate over one time step
@@ -347,13 +347,10 @@ class FDTD():
         else:
             recorder = [self.recorder1,self.recorder2,self.recorder3][recorder_number-1]
             recorder =  np.reshape(recorder,(self.nt,))
-            dk = 2*np.pi/(self.c*self.dt) # wavenumber step
-            print(dk)
-            nk = int(10/dk) # steps in k=10
-            nk=100
-            TF = np.fft.fft(self.bront)[:nk]
-            k_fft = 2*np.pi*np.fft.fftfreq(self.nt,d=self.dt)[:nk]/self.c
-            print(k_fft)
+            dk = 2*np.pi/(self.c*self.dt*self.nt) # wavenumber step
+            nk = int(np.ceil(10/dk)) # steps in k=10
+            TF = (np.fft.fft(recorder)/np.fft.fft(self.bront))[:nk+1]
+            k_fft = 2*np.pi*np.fft.fftfreq(self.nt,d=self.dt)[:nk+1]/self.c
             Amp = np.abs(TF)
             Phase = np.unwrap(np.angle(TF)) 
             if plot:
