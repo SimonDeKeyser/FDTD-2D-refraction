@@ -71,17 +71,7 @@ class FDTD():
 
         self.ny = 2 * self.npml + int(self.L / self.dy)  # number of cells in y direction
 
-    def run_init(self):
-        ## SOURCE AND RECEIVER LOCATIONS
-        self.x_bron = int(self.nd / 10)
-        self.y_bron = self.npml + self.nd
-        self.x_recorder1 = int(self.nd / 2)
-        self.y_recorder1 = self.y_bron + 2 * self.nd  + self.obj_thickness # Location receiver 1
-        self.x_recorder2 = int(self.nd / 2)
-        self.y_recorder2 = self.y_recorder1 + self.nd  # Location receiver 2
-        self.x_recorder3 = int(self.nd / 2)
-        self.y_recorder3 = self.y_recorder2 + self.nd  # Location receiver 3
-
+    def PML_init(self):
         ## PML
         sigma_max_left = 700  # Max amount of damping left
         sigma_max_right = 100  # Max amount of damping right
@@ -112,6 +102,32 @@ class FDTD():
         self.sigma_p_y[:, breedte_PML_rechts:] = np.array(
             [[sigma_max_right * (i / len(self.sigma_p_y[breedte_PML_rechts:, :])) ** m] * self.sigma_p_y.shape[0] for i in
             range(0, self.sigma_p_y.shape[1] - breedte_PML_rechts, 1)]).transpose()
+        return self
+
+    def run_init(self):
+        ## SOURCE AND RECEIVER LOCATIONS
+        self.y_bron = self.npml + self.nd
+        self.x_bron = int(self.nd / 10)
+        self.x_recorder1 = int(self.nd / 2)
+        self.x_recorder2 = int(self.nd / 2)
+        self.x_recorder3 = int(self.nd / 2)
+        self.y_recorder1 = self.y_bron + 2 * self.nd  + self.obj_thickness # y location receiver 1
+        self.y_recorder2 = self.y_recorder1 + self.nd  # y location receiver 2
+        self.y_recorder3 = self.y_recorder2 + self.nd  # y location receiver 3
+
+        if not self.freefield:
+            self.PML_init()
+        else:
+            self.nx *= 4 # enlarge simulation domain for freefield
+            self.ny = self.nx
+            self.x_bron += int(self.nx/2) # shift source and recorders location to middle
+            self.y_bron = int(self.ny/2)
+            self.x_recorder1 += int(self.nx/2)
+            self.x_recorder2 += int(self.nx/2)
+            self.x_recorder3 += int(self.nx/2)
+            self.y_recorder1 = self.y_bron + 2 * self.nd  + self.obj_thickness # y location receiver 1
+            self.y_recorder2 = self.y_recorder1 + self.nd  # y location receiver 2
+            self.y_recorder3 = self.y_recorder2 + self.nd  # y location receiver 3
 
         ## P and O fields
         self.ox = np.zeros((self.nx + 1, self.ny))
@@ -142,10 +158,11 @@ class FDTD():
             self.bront[it] = bron
             self.p[self.x_bron, self.y_bron] += bron  # adding source term to propagation
             
-            self.timestep() # propagate over one time step
-            
             if not self.freefield:
+                self.timestep() # propagate over one time step
                 self.hard_walls_o() # implement the hard walls
+            else:
+                self.freefield_timestep()
 
             self.recorder1[it] = self.p[self.x_recorder1, self.y_recorder1]  # store p field at receiver locations
             self.recorder2[it] = self.p[self.x_recorder2, self.y_recorder2]
@@ -172,7 +189,19 @@ class FDTD():
             else:
                 plt.close()
                 pass
-
+        if self.freefield:
+            choice = 2
+            while choice not in [0,1]:
+                choice = int(input('__FREEFIELD__ Save recorders?(0), or Abort(1)?:'))
+            if choice == 0:
+                recorders = [self.recorder1,self.recorder2,self.recorder3]
+                path = '{}_recorders_kd={}.npy'.format(self.obj, self.kd)
+                print('Saving as: {}'.format(path))
+                np.save(path,recorders)
+                path = '{}_source_kd={}.npy'.format(self.obj, self.kd)
+                print('Saving as: {}'.format(path))
+                np.save(path,self.bront)
+                print('Done')
         return self
 
     def timestep(self):
@@ -180,8 +209,7 @@ class FDTD():
         self.p_x = (np.append(self.p, self.p[0, :].reshape((1, self.ny)), axis=0) - np.append(self.p[-1, :].reshape((1, self.ny)), self.p, axis=0)) / self.dx
 
         self.no_periodic_boundaries() # implement no periodic boundaries
-        if not self.freefield:
-            self.hard_walls_derivative() # implement hard walls for the derivatives
+        self.hard_walls_derivative() # implement hard walls for the derivatives
 
         self.ox = self.ox * (1 - self.dt * self.sigma_x) - self.dt * self.p_x
         self.oy = self.oy * (1 - self.dt * self.sigma_y) - self.dt * self.p_y
@@ -189,6 +217,18 @@ class FDTD():
         self.oy_y = (self.oy[:, 1:] - self.oy[:, :-1]) / self.dy
 
         self.p = self.p - (self.c ** 2) * self.dt * (self.ox_x + self.oy_y) - (self.sigma_p_y + self.sigma_p_x) * self.p * self.dt
+        return self
+    
+    def freefield_timestep(self):
+        self.p_y = (np.append(self.p, self.p[:, 0].reshape((self.nx, 1)), axis=1) - np.append(self.p[:, -1].reshape((self.nx, 1)), self.p, axis=1)) / self.dy
+        self.p_x = (np.append(self.p, self.p[0, :].reshape((1, self.ny)), axis=0) - np.append(self.p[-1, :].reshape((1, self.ny)), self.p, axis=0)) / self.dx
+
+        self.ox = self.ox - self.dt * self.p_x
+        self.oy = self.oy - self.dt * self.p_y
+        self.ox_x = (self.ox[1:, :] - self.ox[:-1, :]) / self.dx
+        self.oy_y = (self.oy[:, 1:] - self.oy[:, :-1]) / self.dy
+
+        self.p = self.p - (self.c ** 2) * self.dt * (self.ox_x + self.oy_y) 
         return self
 
     ## WALLS AND BOUNDARIES--------------------------------------
@@ -283,10 +323,18 @@ class FDTD():
         self.movie.append(artists)
         return self
 
-    def plot_recorders(self):
-        plt.plot(self.tijdreeks,self.recorder1,label='Recorder 1')
-        plt.plot(self.tijdreeks,self.recorder2,label='Recorder 2')
-        plt.plot(self.tijdreeks,self.recorder3,label='Recorder 3')
+    def plot_recorders(self, recorders = []):
+        if not self.initialized and recorders == []:
+            raise ValueError('No fields were recorded yet, first run the simulation')
+        elif self.initialized and recorders == []:
+            recorders = [self.recorder1,self.recorder2,self.recorder3]
+            tijd = self.tijdreeks
+        else:
+            self.params_init()
+            tijd = np.arange(self.nt)*self.dt
+        plt.plot(tijd,recorders[0],label='Recorder 1')
+        plt.plot(tijd,recorders[1],label='Recorder 2')
+        plt.plot(tijd,recorders[2],label='Recorder 3')
         plt.title('Recorded pressure vs time, {} object case, kd={}'.format(self.obj,self.kd))
         plt.xlabel('Time [s]')
         plt.ylabel('Pressure [N/m^2]')
@@ -307,9 +355,9 @@ class FDTD():
             self.params_init()
         if self.obj == 'thin':
             TF = self.TF_ANA_THIN(recorder_number,plot)
+            return TF, self.k_vec
         else:
             print('No analytical transferfunction available for given object')
-        return TF
 
     def TF_ANA_THIN(self,recorder_number,plot):
         self.n = 2
@@ -324,7 +372,7 @@ class FDTD():
         D_m_up = self.Diff_coeff(theta_S_m,theta_R,a_m,b) # source reflection diffraction coefficient 
         D_down = self.Diff_coeff(theta_S,theta_R_m,a,b_m) # source diffraction coefficient mirror wedge
         D_m_down = self.Diff_coeff(theta_S_m,theta_R_m,a_m,b_m) # source reflection diffraction coefficient mirror wedge
-        TF = -1j*((D_up+D_down)*hankel2(0,self.k_vec*a/self.c) + (D_m_up+D_m_down)*hankel2(0,self.k_vec*a_m/self.c))/4
+        TF = self.k_vec*((D_up+D_down)*hankel2(0,self.k_vec*a) + (D_m_up+D_m_down)*hankel2(0,self.k_vec*a_m))/4
         Amp = np.abs(TF)
         Phase = np.unwrap(np.angle(TF)) 
         if plot:
@@ -341,31 +389,35 @@ class FDTD():
             plt.show()
         return TF
 
-    def TF_SIM(self,recorder_number,plot=False):
-        if not self.initialized:
-            print('No fields were recorded yet, first run the simulation')
+    def TF_SIM(self,recorder_number,plot=False, recorders = [], source = []):
+        if not self.initialized and recorders == [] and source == []:
+            raise ValueError('No fields were recorded yet, first run the simulation')
+        elif self.initialized and recorders == [] and source == []:
+            recorders = [self.recorder1,self.recorder2,self.recorder3]
+            source = self.bront
         else:
-            recorder = [self.recorder1,self.recorder2,self.recorder3][recorder_number-1]
-            recorder =  np.reshape(recorder,(self.nt,))
-            dk = 2*np.pi/(self.c*self.dt*self.nt) # wavenumber step
-            nk = int(np.ceil(10/dk)) # steps in k=10
-            TF = (np.fft.fft(recorder)/np.fft.fft(self.bront))[:nk+1]
-            k_fft = 2*np.pi*np.fft.fftfreq(self.nt,d=self.dt)[:nk+1]/self.c
-            Amp = np.abs(TF)
-            Phase = np.unwrap(np.angle(TF)) 
-            if plot:
-                ax1 = plt.subplot(2,1,1)
-                ax1.plot(k_fft,Amp)
-                ax1.set_ylabel('Amplitude')
-                ax1.set_title('Simulated transfer function, thin sheet case')
-                ax1.grid()
-                ax2 = plt.subplot(2,1,2)
-                ax2.plot(k_fft,Phase)
-                ax2.set_xlabel('kd')
-                ax2.set_ylabel('Phase')
-                ax2.grid()
-                plt.show()
-        return TF
+            self.params_init()
+
+        recorder = recorders[recorder_number-1]
+        dk = 2*np.pi/(self.c*self.dt*self.nt) # wavenumber step
+        nk = int(np.ceil(10/dk)) # steps in k=10
+        TF = (np.fft.fft(recorder)/np.fft.fft(source))[:nk+1]
+        k_fft = 2*np.pi*np.fft.fftfreq(self.nt,d=self.dt)[:nk+1]/self.c
+        Amp = np.abs(TF)
+        Phase = np.unwrap(np.angle(TF)) 
+        if plot:
+            ax1 = plt.subplot(2,1,1)
+            ax1.plot(k_fft,Amp)
+            ax1.set_ylabel('Amplitude')
+            ax1.set_title('Simulated transfer function, thin sheet case')
+            ax1.grid()
+            ax2 = plt.subplot(2,1,2)
+            ax2.plot(k_fft,Phase)
+            ax2.set_xlabel('kd')
+            ax2.set_ylabel('Phase')
+            ax2.grid()
+            plt.show()
+        return TF, k_fft
 
     ## USEFUL FUNCTIONS------------------------------------------
     def F(self,x): # Fresnel coefficients
