@@ -55,7 +55,7 @@ class FDTD():
         self.A = 1
         self.fc = self.k * self.c / (2 * np.pi)
         self.t0 = self.nt*self.dt/2
-        self.sigma = 1e-5
+        self.sigma = 5e-5
 
         if self.obj in ['thin','freefield_thin']:
             self.L = 6 * self.d  # length of simulation domain
@@ -144,7 +144,7 @@ class FDTD():
         return self
 
     def source(self,t):
-        bron = self.A * np.cos(2 * np.pi * self.fc *t) * np.exp(-((t - self.t0) ** 2) / (self.sigma))
+        bron = self.A * np.sin(2 * np.pi * self.fc *(t-self.t0)) * np.exp(-((t - self.t0) ** 2) / (self.sigma))
         return bron
 
     ## RUN SIMULATION--------------------------------------------
@@ -412,7 +412,7 @@ class FDTD():
             time = np.arange(self.nt)*self.dt
             recorder = recorders[recorder_number-1]
 
-        n_samples = 8000
+        n_samples = 9000
         FFT_source, k_vec = self.fft(source,n_samples)
         FFT_recorder, _ = self.fft(recorder,n_samples)
         TF = FFT_recorder/FFT_source
@@ -482,20 +482,43 @@ class FDTD():
     def plot_FDTD_ana(self,k_vec,TF_ana,TF_sim):
         Amplratio = np.abs(TF_sim/TF_ana)
         Phasediff = np.unwrap(np.angle(TF_sim)) - np.unwrap(np.angle(TF_ana))
-        ax1 = plt.subplot(2,1,1)
+        ax1 = plt.subplot(2,2,1)
         ax1.plot(k_vec*self.d,Amplratio)
+        ax1.set_xlabel('kd')
         ax1.set_ylabel('Ratio')
-        ax1.set_title('FDTD/ana transfer functions amplitude ratio: {} case, kd = {}'.format(self.obj,self.kd))
+        ax1.set_title('Amplitude ratio')
         ax1.set_xlim([0.5*self.kd, 1.5*self.kd])
         ax1.grid()
 
-        ax2 = plt.subplot(2,1,2)
+        ax2 = plt.subplot(2,2,2)
         ax2.plot(k_vec*self.d,Phasediff)
         ax2.set_xlabel('kd')
         ax2.set_ylabel('Difference')
         ax2.set_xlim([0.5*self.kd, 1.5*self.kd])
-        ax2.set_title('FDTD/ana transfer functions phase difference: {} case, kd = {}'.format(self.obj,self.kd))
+        ax2.set_title('Phase difference')
         ax2.grid()
+
+        ax3 = plt.subplot(2,2,3)
+        ax3.plot(k_vec*self.d,np.abs(TF_sim),label='FDTD')
+        ax3.plot(k_vec*self.d,np.abs(TF_ana),label='Analytical')
+        ax3.set_ylabel('Amplitude')
+        ax3.set_xlabel('kd')
+        ax3.set_title('Comparison of amplitudes')
+        ax3.set_xlim([0.5*self.kd, 1.5*self.kd])
+        ax3.grid()
+        ax3.legend()
+
+        ax4 = plt.subplot(2,2,4)
+        ax4.plot(k_vec*self.d,np.unwrap(np.angle(TF_sim)),label='FDTD')
+        ax4.plot(k_vec*self.d,np.unwrap(np.angle(TF_ana)),label='Analytical')
+        ax4.set_ylabel('Phase')
+        ax4.set_xlabel('kd')
+        ax4.set_title('Comparison of phases')
+        ax4.set_xlim([0.5*self.kd, 1.5*self.kd])
+        ax4.grid()
+        ax4.legend()
+
+        plt.suptitle('FDTD vs analytical transfer function at recorder: {} case, kd = {}'.format(self.obj,self.kd))
         plt.tight_layout()
         plt.show()
     
