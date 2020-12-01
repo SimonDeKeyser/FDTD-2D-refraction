@@ -6,12 +6,12 @@ from scipy.special import hankel2, hankel1
 # PARAMETERS----------------------------------------------
 c = 340  # geluidssnelheid - speed of sound (wave speed)
 dx= 0.1
-kd = 5
+kd = 2.5
 d = 1
 nd = d/dx
 CFL = 1  # Courant number
 dt = CFL / (c * np.sqrt((1 / dx ** 2) + (1 / dx ** 2)))  # time step
-nt = 600
+nt = 400
 obj = 'thin' # Object to simulate
 A = 10
 sigma = 5e-5
@@ -37,7 +37,7 @@ freefield.plot_time_fft(time,source,recorders[0],k_vec,FFT_source,FFT_1) #plot a
 # ANALYTICAL COMPARISON------------------------------------
 TF_1, k_vec = freefield.TF_SIM(recorder_number=1,recorders=recorders,source=source)
 r1 = np.sqrt((2)**2+(2/5)**2)*d #distance to first recorder
-TF_ana = -1j*hankel2(0,k_vec*r1)*k_vec/(A*4)
+TF_ana = -1j*hankel2(0,k_vec*r1)*k_vec/4
 freefield.plot_FDTD_ana(k_vec,TF_ana,TF_1) #plot a FDTD/analytical comparison
 
 ## CONTROLE PC LES 1
@@ -53,13 +53,4 @@ plt.ylabel('ratio')
 plt.grid()
 plt.xlabel('number of cells per wavelength')
 plt.ylim([0.99, 1.01])
-plt.show()
-
-
-plt.plot(k_vec*d,abs(FFT_1),label='FFT recorder 1')
-plt.plot(k_vec*d,abs(TF_ana*FFT_source),label='TF_ana * FFT_source')
-plt.title('fft recorder1')
-plt.xlabel('kd')
-plt.ylabel('amplitude')
-plt.legend()
 plt.show()

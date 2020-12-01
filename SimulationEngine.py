@@ -46,7 +46,7 @@ class FDTD():
         ## PARAMETERS
         self.c = 340  # geluidssnelheid - speed of sound (wave speed)
         self.dy = self.dx
-        self.d = 2  # lengte d
+        self.d = 1  # lengte d
         self.k = self.kd / self.d  # wavenumber
         self.npml = 20  # Extra layers around simulation domain
         self.nx = self.npml + int(4 * self.d / self.dx)  # number of cells in x direction
@@ -159,15 +159,16 @@ class FDTD():
             self.tijdreeks[it] = t
             print('%d/%d' % (it, self.nt))
 
+            prefactor = self.c*self.dt/(self.dx**2)
             bron = self.source(t)
-            self.p[self.x_bron, self.y_bron] += bron  # adding source term to propagation
+            self.p[self.x_bron, self.y_bron] += bron*prefactor  # adding source term to propagation
             self.bront[it] = bron
             
             if not self.freefield:
                 self.timestep() # propagate over one time step
                 self.hard_walls_o() # implement the hard walls
             else:
-                self.freefield_timestep(t)
+                self.freefield_timestep()
 
             self.recorder1[it] = self.p[self.x_recorder1, self.y_recorder1]  # store p field at receiver locations
             self.recorder2[it] = self.p[self.x_recorder2, self.y_recorder2]
@@ -224,7 +225,7 @@ class FDTD():
         self.p = self.p - (self.c ** 2) * self.dt * (self.ox_x + self.oy_y) - (self.sigma_p_y + self.sigma_p_x) * self.p * self.dt
         return self
     
-    def freefield_timestep(self,t):
+    def freefield_timestep(self):
         self.p_y = (np.append(self.p, self.p[:, 0].reshape((self.nx, 1)), axis=1) - np.append(self.p[:, -1].reshape((self.nx, 1)), self.p, axis=1)) / self.dy
         self.p_x = (np.append(self.p, self.p[0, :].reshape((1, self.ny)), axis=0) - np.append(self.p[-1, :].reshape((1, self.ny)), self.p, axis=0)) / self.dx
 
