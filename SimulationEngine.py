@@ -128,6 +128,8 @@ class FDTD():
             self.y_recorder2 = self.y_recorder1 + self.nd  # y location receiver 2
             self.y_recorder3 = self.y_recorder2 + self.nd  # y location receiver 3
 
+        print(self.x_recorder1*self.dx,self.y_recorder1*self.dy)
+        print(self.x_bron*self.dx,self.y_bron*self.dy)
         ## P and O fields
         self.ox = np.zeros((self.nx + 1, self.ny))
         self.oy = np.zeros((self.nx, self.ny + 1))
