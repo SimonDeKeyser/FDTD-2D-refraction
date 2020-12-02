@@ -18,17 +18,22 @@ source = (A,sigma) #source parameters: (A,Sigma)
 
 # RUN SIMULATION---------------------------------------------
 thin = FDTD(dx,kd,dt,nt,source,kdmin,kdmax,obj,animation=False)
+free = FDTD(dx,kd,dt,nt,source,kdmin,kdmax,'freefield_'+obj,animation=False)
 thin.run()
+free.run()
 
 # LOAD SIMULATION----------------------------------------
 recorders = np.load('{}_recorders_kd={}.npy'.format(obj, kd)) #loading saved recorders, MAKE SURE YOU USED THE SAME PARAMETERS
 source = np.load('{}_source_kd={}.npy'.format(obj, kd))
+free_recorders = np.load('{}_recorders_kd={}.npy'.format('freefield_'+obj, kd)) #loading saved recorders, MAKE SURE YOU USED THE SAME PARAMETERS
+free_source = np.load('{}_source_kd={}.npy'.format('freefield_'+obj, kd))
 
 # TIME_FFT SUMMARY----------------------------------------
 thin.time_fft_summary(1,recorders=recorders,source=source) #plot a summary
 
 # ANALYTICAL COMPARISON-----------------------------------
 TF_1 = thin.TF_FDTD(1,recorders=recorders,source=source)
+TF_free = free.TF_FDTD(1,recorders=free_recorders,source=free_source)
 TF_ana_1 = thin.TF_ANA(1)
-thin.FDTD_ana_comparison(TF_1,TF_ana_1) #plot a FDTD/analytical comparison
+thin.FDTD_ana_comparison(TF_1-TF_free,TF_ana_1) #plot a FDTD/analytical comparison
 

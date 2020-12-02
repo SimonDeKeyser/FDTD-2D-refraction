@@ -49,7 +49,7 @@ class FDTD():
         self.dy = self.dx
         self.d = 1  # lengte d
         self.k = self.kd / self.d  # wavenumber
-        self.npml = 20  # Extra layers around simulation domain
+        self.npml = 40  # Extra layers around simulation domain
         self.nx = self.npml + int(4 * self.d / self.dx)  # number of cells in x direction
         self.nd = int(self.d / self.dx)  # number of cells in d length
 
@@ -76,9 +76,9 @@ class FDTD():
         sigma_max_left = 700  # Max amount of damping left
         sigma_max_right = 100  # Max amount of damping right
         sigma_max_up = 700  # Max amount of damping upward
-        hoogte_PML = self.nx - int(2 * self.nd) + 1 - 10  # Height from which wave starts damping (numbers of layers)
-        breedte_PML_links = self.y_bron - 10  # How much to the right of left simulation wall will wave start damping (numbers of layers)
-        breedte_PML_rechts = self.ny - self.y_recorder3 - 10  # How much to the left of right simulation wall will wave start damping (numbers of layers)
+        hoogte_PML = self.npml - 20 # Height from which wave starts damping (numbers of layers)
+        breedte_PML_links = self.npml -20  # How much to the right of left simulation wall will wave start damping (numbers of layers)
+        breedte_PML_rechts = self.npml -20 # How much to the left of right simulation wall will wave start damping (numbers of layers)
         self.sigma_x = np.zeros((self.nx + 1, self.ny))
         self.sigma_y = np.zeros((self.nx, self.ny + 1))
         self.sigma_p_x = np.zeros((self.nx, self.ny))
