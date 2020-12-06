@@ -10,7 +10,7 @@ kdmin = kd*0.2
 kdmax = kd*1.7
 CFL = 1  # Courant number
 dt = CFL / (c * np.sqrt((1 / dx ** 2) + (1 / dx ** 2)))  # time step
-nt = 400
+nt = 150
 obj = 'freefield_thin' # Object to simulate
 A = 10
 sigma = 1e-5
@@ -18,11 +18,11 @@ source = (A,sigma) #source parameters: (A,Sigma)
 
 # RUN SIMULATION---------------------------------------------
 free_thin = FDTD(dx,kd,dt,nt,source,kdmin,kdmax,obj,animation=False)
-#free_thin.run()
+free_thin.run()
+free_thin.save()
 
 # LOAD SIMULATION----------------------------------------
-recorders = np.load('{}_recorders_kd={}.npy'.format(obj, kd)) #loading saved recorders, MAKE SURE YOU USED THE SAME PARAMETERS
-source = np.load('{}_source_kd={}.npy'.format(obj, kd))
+recorders, source = free_thin.load()
 
 # TIME_FFT SUMMARY----------------------------------------
 free_thin.time_fft_summary(1,recorders=recorders,source=source) #plot a summary

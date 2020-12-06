@@ -49,17 +49,17 @@ class FDTD():
         self.dy = self.dx
         self.d = 1  # lengte d
         self.k = self.kd / self.d  # wavenumber
-        self.npml = 40  # Extra layers around simulation domain
+        self.npml = 70  # Extra layers around simulation domain
         self.nx = self.npml + int(4 * self.d / self.dx)  # number of cells in x direction
         self.nd = int(self.d / self.dx)  # number of cells in d length
 
         ## SOURCE PARAMETERS
         self.fc = self.k * self.c / (2 * np.pi)
-        self.t0 = self.nt*self.dt/2
+        self.t0 = self.sigma*1e3
 
         if self.obj in ['thin','freefield_thin']:
             self.L = 6 * self.d  # length of simulation domain
-            self.obj_thickness = 0 # thickness object
+            self.obj_thickness = 0
             self.x_obj = int(2 * self.nd) # x-length of object
             self.y_obj = int(2 * self.nd) + self.npml # y coordinate of object
         else:
@@ -76,9 +76,9 @@ class FDTD():
         sigma_max_left = 700  # Max amount of damping left
         sigma_max_right = 100  # Max amount of damping right
         sigma_max_up = 700  # Max amount of damping upward
-        hoogte_PML = self.npml - 20 # Height from which wave starts damping (numbers of layers)
-        breedte_PML_links = self.npml -20  # How much to the right of left simulation wall will wave start damping (numbers of layers)
-        breedte_PML_rechts = self.npml -20 # How much to the left of right simulation wall will wave start damping (numbers of layers)
+        hoogte_PML = 1 # Height from which wave starts damping (numbers of layers)
+        breedte_PML_links = 1# How much to the right of left simulation wall will wave start damping (numbers of layers)
+        breedte_PML_rechts = 1 # How much to the left of right simulation wall will wave start damping (numbers of layers)
         self.sigma_x = np.zeros((self.nx + 1, self.ny))
         self.sigma_y = np.zeros((self.nx, self.ny + 1))
         self.sigma_p_x = np.zeros((self.nx, self.ny))
@@ -192,7 +192,6 @@ class FDTD():
             
             if not self.freefield:
                 self.timestep() # propagate over one time step
-                self.hard_walls_o() # implement the hard walls
             else:
                 self.freefield_timestep()
 
@@ -203,6 +202,70 @@ class FDTD():
             if self.animation:
                 self.animate_2D(it)
 
+        self.output()
+        self.runned = True
+        return self
+
+    def timestep(self):
+        self.ox[1:-1,:] -= (self.dt/self.dx) * (self.p[1:,:]-self.p[:-1,:])
+        self.oy[:,1:-1] -= (self.dt/self.dx) * (self.p[:,1:]-self.p[:,:-1])
+
+        self.ox_x = (self.ox[1:, :] - self.ox[:-1, :]) / self.dx
+        self.oy_y = (self.oy[:, 1:] - self.oy[:, :-1]) / self.dy
+        self.hard_walls()
+        self.p -= (self.c ** 2) * self.dt * (self.ox_x + self.oy_y)
+        return self
+    
+    def freefield_timestep(self):
+        self.p_y = (np.append(self.p, self.p[:, 0].reshape((self.nx, 1)), axis=1) - np.append(self.p[:, -1].reshape((self.nx, 1)), self.p, axis=1)) / self.dy
+        self.p_x = (np.append(self.p, self.p[0, :].reshape((1, self.ny)), axis=0) - np.append(self.p[-1, :].reshape((1, self.ny)), self.p, axis=0)) / self.dx
+
+        self.ox -= self.dt * self.p_x
+        self.oy -= self.dt * self.p_y
+
+        self.ox_x = (self.ox[1:, :] - self.ox[:-1, :]) / self.dx
+        self.oy_y = (self.oy[:, 1:] - self.oy[:, :-1]) / self.dy
+
+        self.p -= (self.c ** 2) * self.dt * (self.ox_x + self.oy_y) 
+        return self
+
+    def save(self):
+        recorders = [self.recorder1,self.recorder2,self.recorder3]
+        path = '{}_recorders_kd={}.npy'.format(self.obj, self.kd)
+        print('Saving as: {}'.format(path))
+        np.save(path,recorders)
+        path = '{}_source_kd={}.npy'.format(self.obj, self.kd)
+        print('Saving as: {}'.format(path))
+        np.save(path,self.bront)
+        print('Done')
+
+    def load(self):
+        try:
+            recorders = np.load('{}_recorders_kd={}.npy'.format(self.obj, self.kd)) #loading saved recorders, MAKE SURE YOU USED THE SAME PARAMETERS
+            source = np.load('{}_source_kd={}.npy'.format(self.obj, self.kd))
+            return recorders,source
+        except FileNotFoundError:
+            print('ERROR: Run the simulation first and save before loading')
+            quit()
+
+    ## WALLS AND BOUNDARIES--------------------------------------
+    def hard_walls(self):
+        if self.obj == 'thin':
+            self.ox_x[:self.x_obj, self.y_obj] = 0 
+            self.oy_y[:self.x_obj, self.y_obj] = 0 
+        elif self.obj == 'thick':
+            self.oy_y[:self.x_obj, self.y_obj:self.y_obj+self.obj_thickness] = 0 
+            self.ox_x[:self.x_obj, self.y_obj:self.y_obj+self.obj_thickness] = 0 
+        elif self.obj == 'triangle':
+            for i in range(0, int(self.nd / 2) + 1):
+                self.ox_x[: 4 * i, 2 * self.nd + i + self.npml] = 0  # half triangle
+                self.oy_y[: 4 * i, 2 * self.nd + i + self.npml] = 0  # half triangle
+                self.ox_x[: 4 * i, 3 * self.nd - i + self.npml] = 0  # half triangle
+                self.oy_y[: 4 * i, 3 * self.nd - i + self.npml] = 0  # half triangle
+        return self
+
+    ## POSTPROCESSING--------------------------------------------
+    def output(self):
         if self.animation:
             my_anim = ArtistAnimation(self.fig, self.movie, interval=50, repeat_delay=1000,
                                   blit=True)
@@ -221,88 +284,7 @@ class FDTD():
             else:
                 plt.close()
                 pass
-
-        choice = 2
-        while choice not in ['0','A','a']:
-            choice = input('__RECORDERS/SOURCE__ Save(0) // Abort(A):')
-        if choice == '0':
-            recorders = [self.recorder1,self.recorder2,self.recorder3]
-            path = '{}_recorders_kd={}.npy'.format(self.obj, self.kd)
-            print('Saving as: {}'.format(path))
-            np.save(path,recorders)
-            path = '{}_source_kd={}.npy'.format(self.obj, self.kd)
-            print('Saving as: {}'.format(path))
-            np.save(path,self.bront)
-            print('Done')
-        self.runned = True
-        return self
-
-    def timestep(self):
-        self.p_y = (np.append(self.p, self.p[:, 0].reshape((self.nx, 1)), axis=1) - np.append(self.p[:, -1].reshape((self.nx, 1)), self.p, axis=1)) / self.dy
-        self.p_x = (np.append(self.p, self.p[0, :].reshape((1, self.ny)), axis=0) - np.append(self.p[-1, :].reshape((1, self.ny)), self.p, axis=0)) / self.dx
-
-        self.no_periodic_boundaries() # implement no periodic boundaries
-        self.hard_walls_derivative() # implement hard walls for the derivatives
-
-        self.ox = self.ox * (1 - self.dt * self.sigma_x) - self.dt * self.p_x
-        self.oy = self.oy * (1 - self.dt * self.sigma_y) - self.dt * self.p_y
-
-        self.ox_x = (self.ox[1:, :] - self.ox[:-1, :]) / self.dx
-        self.oy_y = (self.oy[:, 1:] - self.oy[:, :-1]) / self.dy
-
-        self.p = self.p - (self.c ** 2) * self.dt * (self.ox_x + self.oy_y) - (self.sigma_p_y + self.sigma_p_x) * self.p * self.dt
-        return self
     
-    def freefield_timestep(self):
-        self.p_y = (np.append(self.p, self.p[:, 0].reshape((self.nx, 1)), axis=1) - np.append(self.p[:, -1].reshape((self.nx, 1)), self.p, axis=1)) / self.dy
-        self.p_x = (np.append(self.p, self.p[0, :].reshape((1, self.ny)), axis=0) - np.append(self.p[-1, :].reshape((1, self.ny)), self.p, axis=0)) / self.dx
-
-        self.ox -= self.dt * self.p_x
-        self.oy -= self.dt * self.p_y
-
-        self.ox_x = (self.ox[1:, :] - self.ox[:-1, :]) / self.dx
-        self.oy_y = (self.oy[:, 1:] - self.oy[:, :-1]) / self.dy
-
-        self.p -= (self.c ** 2) * self.dt * (self.ox_x + self.oy_y) 
-        return self
-
-    ## WALLS AND BOUNDARIES--------------------------------------
-    def no_periodic_boundaries(self):
-        self.p_y[-1, :] = 0  # No periodic boundaries
-        self.p_x[-1, :] = 0  # No periodic boundaries
-        self.p_y[:, -1] = 0  # No periodic boundaries
-        self.p_x[:, -1] = 0  # No periodic boundaries
-        return self
-
-    def hard_walls_o(self):
-        if self.obj in ['thin','thick']:
-            self.ox[:self.x_obj, self.y_obj:self.y_obj+self.obj_thickness] = 0 
-            self.oy[:self.x_obj, self.y_obj:self.y_obj+self.obj_thickness] = 0  
-
-        elif self.obj == 'triangle':
-            for i in range(0, int(self.nd / 2) + 1):
-                self.ox[: 4 * i, 2 * self.nd + i + self.npml] = 0  # half triangle
-                self.oy[: 4 * i, 2 * self.nd + i + self.npml] = 0  # half triangle
-                self.ox[: 4 * i, 3 * self.nd - i + self.npml] = 0  # half triangle
-                self.oy[: 4 * i, 3 * self.nd - i + self.npml] = 0  # half triangle
-
-        self.ox[0, :] = 0  # ground
-        self.oy[0, :] = 0  # ground 
-        return self
-
-    def hard_walls_derivative(self):
-        if self.obj in ['thin','thick']:
-            self.p_x[:self.x_obj+1, self.y_obj:self.y_obj+self.obj_thickness+1] = 0 
-            self.p_y[:self.x_obj+1, self.y_obj:self.y_obj+self.obj_thickness+1] = 0  
-        elif self.obj == 'triangle':
-            for i in range(0, int(self.nd / 2) + 1):
-                self.p_x[: 4 * i, 2 * self.nd + i + self.npml] = 0  # half triangle
-                self.p_y[: 4 * i, 2 * self.nd + i + self.npml] = 0  # half triangle
-                self.p_x[: 4 * i, 3 * self.nd - i + self.npml] = 0  # half triangle
-                self.p_y[: 4 * i, 3 * self.nd - i + self.npml] = 0  # half triangle
-        return self
-
-    ## POSTPROCESSING--------------------------------------------
     def animate_2D(self,it):
         if self.obj in ['thin','freefield_thin']:
             if self.obj == 'freefield_thin':
@@ -338,8 +320,12 @@ class FDTD():
         elif self.obj == 'freefield_thin':
             TF = self.TF_freefield_thin(recorder_number)
             return TF
+        elif self.obj == 'triangle':
+            TF = self.TF_triangle(recorder_number)
+            return TF
         else:
-            print('No analytical transferfunction available for given object')
+            print('No analytical transferfunction available (yet) for given object')
+            quit()
 
     def TF_thin(self,recorder_number):
         self.n = 2
@@ -350,11 +336,28 @@ class FDTD():
         a,a_m = (np.sqrt(1.9**2 + 1)*self.d,np.sqrt(2.1**2 + 1)*self.d) # distance from source to top of sheet and mirror source
         b = np.array([np.sqrt(1.5**2 + 1)*self.d,np.sqrt(1.5**2 + 4)*self.d,np.sqrt(1.5**2 + 9)*self.d])[recorder_number-1]  # distance from recorder to top of sheet
         b_m = np.array([np.sqrt(2.5**2 + 1)*self.d,np.sqrt(2.5**2 + 4)*self.d,np.sqrt(2.5**2 + 9)*self.d])[recorder_number-1]  # distance from recorder to top of mirror sheet
-        D_up = self.Diff_coeff(k_vec,theta_S,theta_R,a,b) # source diffraction coefficient 
-        D_m_up = self.Diff_coeff(k_vec,theta_S_m,theta_R,a_m,b) # source reflection diffraction coefficient 
-        D_down = self.Diff_coeff(k_vec,theta_S,theta_R_m,a,b_m) # source diffraction coefficient mirror wedge
-        D_m_down = self.Diff_coeff(k_vec,theta_S_m,theta_R_m,a_m,b_m) # source reflection diffraction coefficient mirror wedge
-        TF = -1j*k_vec*((D_up+D_down)*hankel2(0,k_vec*a) + (D_m_up+D_m_down)*hankel2(0,k_vec*a_m))/4
+        D_up = self.Diffraction(k_vec,theta_S,theta_R,a,b) # source diffraction 
+        D_m_up = self.Diffraction(k_vec,theta_S_m,theta_R,a_m,b) # source reflection diffraction 
+        D_down = self.Diffraction(k_vec,theta_S,theta_R_m,a,b_m) # source diffraction at mirror wedge
+        D_m_down = self.Diffraction(k_vec,theta_S_m,theta_R_m,a_m,b_m) # source reflection diffraction at mirror wedge
+        TF = D_up + D_down + D_m_up + D_m_down
+        return TF
+
+    def TF_triangle(self,recorder_number):
+        phi = np.arctan(1/4) #half top angle of triangle
+        self.n =(2*np.pi - 2*phi)/np.pi
+        k_vec,_,_= self.k_vec()
+        theta_R = 2*np.pi - phi- np.arctan([3/3,5/3,7/3])[recorder_number-1] # angle between recorder and sheet
+        theta_R_m = 2*np.pi - np.arctan([3/5,5/5,7/5])[recorder_number-1] # angle between recorder and mirror sheet
+        theta_S, theta_S_m = (np.arctan(15/19)-phi,np.arctan(15/21)-phi) # angle between source and sheet and mirror source
+        a,a_m = (np.sqrt(1.9**2 + 1.5**2)*self.d,np.sqrt(2.1**2 + 1.5**2)*self.d) # distance from source to top of sheet and mirror source
+        b = np.array([np.sqrt(1.5**2 + 1.5**2)*self.d,np.sqrt(1.5**2 + 2.5**2)*self.d,np.sqrt(1.5**2 + 3.5**2)*self.d])[recorder_number-1]  # distance from recorder to top of sheet
+        b_m = np.array([np.sqrt(2.5**2 + 1.5**2)*self.d,np.sqrt(2.5**2 + 2.5**2)*self.d,np.sqrt(2.5**2 + 3.5**2)*self.d])[recorder_number-1]  # distance from recorder to top of mirror sheet
+        D_up = self.Diffraction(k_vec,theta_S,theta_R,a,b) # source diffraction 
+        D_m_up = self.Diffraction(k_vec,theta_S_m,theta_R,a_m,b) # source reflection diffraction 
+        D_down = self.Diffraction(k_vec,theta_S,theta_R_m,a,b_m) # source diffraction at mirror wedge
+        D_m_down = self.Diffraction(k_vec,theta_S_m,theta_R_m,a_m,b_m) # source reflection diffraction at mirror wedge
+        TF = D_up + D_down + D_m_up + D_m_down
         return TF
 
     def TF_freefield_thin(self,recorder_number):
@@ -496,14 +499,14 @@ class FDTD():
     def F(self,x): # Fresnel coefficients
         S1,C1 = sc.fresnel(np.inf)
         S2,C2 = sc.fresnel(np.sqrt(2*x/np.pi))
-        I = np.sqrt(np.pi/2)*((C1 + 1j*S1) - (C2 + 1j*S2))
+        I = np.sqrt(2/np.pi)*((C1 + 1j*S1) - (C2 + 1j*S2))
         out = -2*1j*np.sqrt(x)*np.exp(-1j*x)*I
         return out
 
     def cotg(self,x): # Cotangent with x in rads
         return sc.cotdg(np.rad2deg(x))
 
-    def Diff_coeff(self,k_vec,theta_S,theta_R,a,b):
+    def Diffraction(self,k_vec,theta_S,theta_R,a,b):
         a_plus = theta_R + theta_S
         a_min = theta_R - theta_S
         L = a*b/(a+b) 
@@ -511,7 +514,8 @@ class FDTD():
         N_min = lambda a: np.round(-(np.pi-a)/(2*np.pi*self.n)).astype(int) # N-, integer
         A_plus = lambda a: 2*np.cos((2*self.n*np.pi*N_plus(a)-a)/2)**2 # A+(a)
         A_min = lambda a: 2*np.cos((2*self.n*np.pi*N_min(a)-a)/2)**2 # A-(a)
-        C = np.exp(1j*k_vec*(a+b)+1j*np.pi/4)/(2*self.n*np.sqrt(L*2*np.pi*k_vec)) # prefactor of diffraction coefficient
+        C2D = -1*k_vec*hankel2(0,k_vec*b)*hankel2(0,k_vec*a)/(16) # Propagation factor 2D
+        C = C2D*np.exp(1j*np.pi/4)/(2*self.n*np.sqrt(2*np.pi*k_vec)) # prefactor of diffraction coefficient
         D1 = self.cotg((np.pi-a_min)/(2*self.n))*self.F(k_vec*L*A_min(a_min)) # 1st term of diffraction coefficient
         D2 = self.cotg((np.pi-a_plus)/(2*self.n))*self.F(k_vec*L*A_min(a_plus)) # 2nd term of diffraction coefficient
         D3 = self.cotg((np.pi+a_plus)/(2*self.n))*self.F(k_vec*L*A_plus(a_plus))# 3th term of diffraction coefficient
