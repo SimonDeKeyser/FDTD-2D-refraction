@@ -251,17 +251,17 @@ class FDTD():
     ## WALLS AND BOUNDARIES--------------------------------------
     def hard_walls(self):
         if self.obj == 'thin':
-            self.ox_x[:self.x_obj, self.y_obj] = 0 
-            self.oy_y[:self.x_obj, self.y_obj] = 0 
+            self.ox_x[:self.x_obj+1, self.y_obj] = 0 
+            self.oy_y[:self.x_obj+1, self.y_obj] = 0 
         elif self.obj == 'thick':
-            self.oy_y[:self.x_obj, self.y_obj:self.y_obj+self.obj_thickness] = 0 
-            self.ox_x[:self.x_obj, self.y_obj:self.y_obj+self.obj_thickness] = 0 
+            self.oy_y[:self.x_obj+1, self.y_obj:self.y_obj+self.obj_thickness] = 0 
+            self.ox_x[:self.x_obj+1, self.y_obj:self.y_obj+self.obj_thickness] = 0 
         elif self.obj == 'triangle':
             for i in range(0, int(self.nd / 2) + 1):
-                self.ox_x[: 4 * i, 2 * self.nd + i + self.npml] = 0  # half triangle
-                self.oy_y[: 4 * i, 2 * self.nd + i + self.npml] = 0  # half triangle
-                self.ox_x[: 4 * i, 3 * self.nd - i + self.npml] = 0  # half triangle
-                self.oy_y[: 4 * i, 3 * self.nd - i + self.npml] = 0  # half triangle
+                self.ox_x[: 4 * i+1, 2 * self.nd + i + self.npml] = 0  # half triangle
+                self.oy_y[: 4 * i+1, 2 * self.nd + i + self.npml] = 0  # half triangle
+                self.ox_x[: 4 * i+1, 3 * self.nd - i + self.npml] = 0  # half triangle
+                self.oy_y[: 4 * i+1, 3 * self.nd - i + self.npml] = 0  # half triangle
         return self
 
     ## POSTPROCESSING--------------------------------------------
@@ -320,6 +320,9 @@ class FDTD():
         elif self.obj == 'freefield_thin':
             TF = self.TF_freefield_thin(recorder_number)
             return TF
+        elif self.obj == 'thick':
+            TF = self.TF_thick(recorder_number)
+            return TF
         elif self.obj == 'triangle':
             TF = self.TF_triangle(recorder_number)
             return TF
@@ -340,6 +343,22 @@ class FDTD():
         D_m_up = self.Diffraction(k_vec,theta_S_m,theta_R,a_m,b) # source reflection diffraction 
         D_down = self.Diffraction(k_vec,theta_S,theta_R_m,a,b_m) # source diffraction at mirror wedge
         D_m_down = self.Diffraction(k_vec,theta_S_m,theta_R_m,a_m,b_m) # source reflection diffraction at mirror wedge
+        TF = D_up + D_down + D_m_up + D_m_down
+        return TF
+    
+    def TF_thick(self,recorder_number):
+        self.n = 1.5
+        k_vec,_,_= self.k_vec()
+        theta_R = 2*np.pi - np.arctan([2/3,4/3,2])[recorder_number-1] # angle between recorder and sheet
+        theta_R_m = 2*np.pi - np.arctan([2/5,4/5,6/5])[recorder_number-1] # angle between recorder and mirror sheet
+        theta_S, theta_S_m = (np.arctan(10/19),np.arctan(10/21)) # angle between source and sheet and mirror source
+        a,a_m = (np.sqrt(1.9**2 + 1)*self.d,np.sqrt(2.1**2 + 1)*self.d) # distance from source to top of sheet and mirror source
+        b = np.array([np.sqrt(1.5**2 + 1)*self.d,np.sqrt(1.5**2 + 4)*self.d,np.sqrt(1.5**2 + 9)*self.d])[recorder_number-1]  # distance from recorder to top of sheet
+        b_m = np.array([np.sqrt(2.5**2 + 1)*self.d,np.sqrt(2.5**2 + 4)*self.d,np.sqrt(2.5**2 + 9)*self.d])[recorder_number-1]  # distance from recorder to top of mirror sheet
+        D_up = self.Diffraction(k_vec,theta_S,0,a,self.d)*self.Diffraction(k_vec,0,theta_R,a+self.d,b,order=2) # source diffraction 
+        D_m_up = self.Diffraction(k_vec,theta_S_m,0,a_m,self.d)*self.Diffraction(k_vec,0,theta_R,a_m+self.d,b,order=2)  # source reflection diffraction 
+        D_down = self.Diffraction(k_vec,theta_S,0,a,self.d)*self.Diffraction(k_vec,0,theta_R_m,a+self.d,b_m,order=2) # source diffraction at mirror wedge
+        D_m_down = self.Diffraction(k_vec,theta_S_m,0,a_m,self.d)*self.Diffraction(k_vec,0,theta_R_m,a_m+self.d,b_m,order=2) # source reflection diffraction at mirror wedge
         TF = D_up + D_down + D_m_up + D_m_down
         return TF
 
@@ -402,6 +421,10 @@ class FDTD():
             recorder = [self.recorder1,self.recorder2,self.recorder3][recorder_number-1]
             source = self.bront
         else:
+            if self.nt != len(source):
+                print('Make sure that the loaded simulation has the same parameters as the FDTD class')
+                print('Run the simulation and save or redefine the parameters according to the saved file')
+                quit()
             recorder = recorders[recorder_number-1]
 
         FFT_source = self.fft(source)
@@ -506,7 +529,7 @@ class FDTD():
     def cotg(self,x): # Cotangent with x in rads
         return sc.cotdg(np.rad2deg(x))
 
-    def Diffraction(self,k_vec,theta_S,theta_R,a,b):
+    def Diffraction(self,k_vec,theta_S,theta_R,a,b,order=1):
         a_plus = theta_R + theta_S
         a_min = theta_R - theta_S
         L = a*b/(a+b) 
@@ -514,7 +537,12 @@ class FDTD():
         N_min = lambda a: np.round(-(np.pi-a)/(2*np.pi*self.n)).astype(int) # N-, integer
         A_plus = lambda a: 2*np.cos((2*self.n*np.pi*N_plus(a)-a)/2)**2 # A+(a)
         A_min = lambda a: 2*np.cos((2*self.n*np.pi*N_min(a)-a)/2)**2 # A-(a)
-        C2D = -1*k_vec*hankel2(0,k_vec*b)*hankel2(0,k_vec*a)/(16) # Propagation factor 2D
+        if self.obj== 'thick' and order == 1:
+            C2D = -1j*k_vec*hankel2(0,k_vec*a)/4
+        elif self.obj== 'thick' and order == 2:
+            C2D = -1j*hankel2(0,k_vec*b)/4
+        else:
+            C2D = -1*k_vec*hankel2(0,k_vec*b)*hankel2(0,k_vec*a)/(16) # Propagation factor 2D
         C = C2D*np.exp(1j*np.pi/4)/(2*self.n*np.sqrt(2*np.pi*k_vec)) # prefactor of diffraction coefficient
         D1 = self.cotg((np.pi-a_min)/(2*self.n))*self.F(k_vec*L*A_min(a_min)) # 1st term of diffraction coefficient
         D2 = self.cotg((np.pi-a_plus)/(2*self.n))*self.F(k_vec*L*A_min(a_plus)) # 2nd term of diffraction coefficient
