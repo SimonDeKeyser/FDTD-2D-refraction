@@ -18,8 +18,8 @@ source = (A,sigma) #source parameters: (A,Sigma)
 
 # RUN SIMULATION---------------------------------------------
 free_thin = FDTD(dx,kd,dt,nt,source,kdmin,kdmax,obj,animation=False)
-free_thin.run()
-free_thin.save()
+#free_thin.run()
+#free_thin.save()
 
 # LOAD SIMULATION----------------------------------------
 recorders, source = free_thin.load()

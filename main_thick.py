@@ -18,23 +18,18 @@ source = (A,sigma) #source parameters: (A,Sigma)
 
 # RUN SIMULATION---------------------------------------------
 thick = FDTD(dx,kd,dt,nt,source,kdmin,kdmax,obj,animation=False)
-free = FDTD(dx,kd,dt,nt,source,kdmin,kdmax,'freefield_'+obj,animation=False)
 #thick.run()
 #thick.save()
-#free.run()
-#free.save()
 
 # LOAD SIMULATION----------------------------------------
 recorders, source = thick.load()
-#free_recorders, free_source = free.load()
 
 # TIME_FFT SUMMARY----------------------------------------
 thick.time_fft_summary(1,recorders=recorders,source=source) #plot a summary
-#free.time_fft_summary(1,recorders=free_recorders,source=free_source) #plot a summary
 
 # ANALYTICAL COMPARISON-----------------------------------
 TF_1 = thick.TF_FDTD(1,recorders=recorders,source=source)
-#TF_free = free.TF_FDTD(1,recorders=free_recorders,source=free_source)
 TF_ana_1 = thick.TF_ANA(1)
-thick.FDTD_ana_comparison(TF_1,TF_ana_1) #plot a FDTD/analytical comparison
+TF_free_1 = thick.TF_freefield_thin(1)
+thick.FDTD_ana_comparison(TF_1-TF_free_1,TF_ana_1-TF_free_1,rel=True) #plot a FDTD/analytical comparison
 
