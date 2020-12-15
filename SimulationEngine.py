@@ -75,12 +75,13 @@ class FDTD():
     def PML_init(self):
         ## PML
         kap_max_l = 3000  # Max amount of damping left
-        kap_max_r = 2000  # Max amount of damping right
-        kap_max_u = 2800  # Max amount of damping upward
-        n_l = 40 # numbers of layers of left PML
-        n_r = 40 #  numbers of layers of right PML
-        n_u = 40 # numbers of layers of upper PML
-        m = 2.7  # Power of the PML
+        kap_max_r = 2800  # Max amount of damping right
+        kap_max_u = 2000  # Max amount of damping upward
+        layers = 40
+        n_l = layers # numbers of layers of left PML
+        n_r = layers #  numbers of layers of right PML
+        n_u = layers # numbers of layers of upper PML
+        m = 2 # Power of the PML
 
         self.kap_x = np.zeros((self.nx, self.ny)) #damping in x direction
         self.kap_y = np.zeros((self.nx, self.ny)) #damping in y direction
@@ -482,7 +483,7 @@ class FDTD():
         plt.tight_layout()
         plt.show()
         
-    def FDTD_ana_comparison(self,recorder_number,TF_sim,TF_ana,rel=False):
+    def FDTD_ana_comparison(self,recorder_number,TF_sim,TF_ana,reportcompare=False):
         k_vec, _, _ = self.k_vec()
         if self.obj == 'thin':
             TF_free = self.TF_freefield_thin(recorder_number)
@@ -492,7 +493,7 @@ class FDTD():
         Amplratio = np.abs((TF_sim-TF_free)/(TF_ana-TF_free))
         Amplratio =  1+((Amplratio-1)/self.kd)
         Phasediff = ((np.unwrap(np.angle(TF_sim-TF_free))) - (np.unwrap(np.angle(TF_ana-TF_free))))/self.kd
-        if rel == True:
+        if reportcompare == True:
             ax1 = plt.subplot(1,2,1)
             ax1.plot(k_vec*self.d,Amplratio)
             ax1.set_xlabel('kd')
@@ -563,6 +564,7 @@ class FDTD():
         a_plus = theta_R + theta_S
         a_min = theta_R - theta_S
         L = a*b/(a+b) 
+        print('Condtion for GTD: kL = {}'.format(self.kd*L))
         N_plus = lambda a: np.round((np.pi+a)/(2*np.pi*self.n)).astype(int) # N+, integer
         N_min = lambda a: np.round(-(np.pi-a)/(2*np.pi*self.n)).astype(int) # N-, integer
         A_plus = lambda a: 2*np.cos((2*self.n*np.pi*N_plus(a)-a)/2)**2 # A+(a)

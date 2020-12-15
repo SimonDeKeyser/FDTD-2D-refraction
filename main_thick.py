@@ -30,5 +30,5 @@ thick.time_fft_summary(1,recorders=recorders,source=source) #plot a summary
 # ANALYTICAL COMPARISON-----------------------------------
 TF_1 = thick.TF_FDTD(1,recorders=recorders,source=source)
 TF_ana_1 = thick.TF_ANA(1)
-thick.FDTD_ana_comparison(1,TF_1,TF_ana_1,rel=False) #plot a FDTD/analytical comparison
+thick.FDTD_ana_comparison(1,TF_1,TF_ana_1,reportcompare=False) #plot a FDTD/analytical comparison
 

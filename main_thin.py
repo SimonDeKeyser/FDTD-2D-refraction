@@ -24,12 +24,13 @@ thin.save()
 # LOAD SIMULATION----------------------------------------
 recorders, source = thin.load()
 
+recorder_number = 1
 # TIME_FFT SUMMARY----------------------------------------
-thin.time_fft_summary(1,recorders=recorders,source=source) #plot a summary
+thin.time_fft_summary(recorder_number,recorders=recorders,source=source) #plot a summary
 
 # ANALYTICAL COMPARISON-----------------------------------
-TF_1 = thin.TF_FDTD(1,recorders=recorders,source=source)
-TF_ana_1 = thin.TF_ANA(1)
+TF_1 = thin.TF_FDTD(recorder_number,recorders=recorders,source=source)
+TF_ana_1 = thin.TF_ANA(recorder_number)
 print(np.sqrt(np.mean(np.square(np.abs(TF_1)-np.abs(TF_ana_1))/np.abs(TF_ana_1))))
-thin.FDTD_ana_comparison(1,TF_1,TF_ana_1,rel=False) #plot a FDTD/analytical comparison
+thin.FDTD_ana_comparison(recorder_number,TF_1,TF_ana_1,reportcompare=False) #plot a FDTD/analytical comparison
 
