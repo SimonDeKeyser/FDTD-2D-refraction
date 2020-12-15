@@ -50,7 +50,7 @@ class FDTD():
         self.dy = self.dx
         self.d = 1  # lengte d
         self.k = self.kd / self.d  # wavenumber
-        self.npml = 70  # Extra layers around simulation domain
+        self.npml = 40  # Extra layers around simulation domain
         self.nx = self.npml + int(4 * self.d / self.dx)  # number of cells in x direction
         self.nd = int(self.d / self.dx)  # number of cells in d length
 
@@ -74,38 +74,28 @@ class FDTD():
 
     def PML_init(self):
         ## PML
-        sigma_max_left = 700  # Max amount of damping left
-        sigma_max_right = 100  # Max amount of damping right
-        sigma_max_up = 700  # Max amount of damping upward
-        hoogte_PML = 1 # Height from which wave starts damping (numbers of layers)
-        breedte_PML_links = 1# How much to the right of left simulation wall will wave start damping (numbers of layers)
-        breedte_PML_rechts = 1 # How much to the left of right simulation wall will wave start damping (numbers of layers)
-        self.sigma_x = np.zeros((self.nx + 1, self.ny))
-        self.sigma_y = np.zeros((self.nx, self.ny + 1))
-        self.sigma_p_x = np.zeros((self.nx, self.ny))
-        self.sigma_p_y = np.zeros((self.nx, self.ny))
-        m = 1  # Power of the PML (3 to 4), if too high, the sigma_max is too small
+        kap_max_l = 10000  # Max amount of damping left
+        kap_max_r = 10000  # Max amount of damping right
+        kap_max_u = 10000  # Max amount of damping upward
+        n_l = 40 # numbers of layers of left PML
+        n_r = 40 #  numbers of layers of right PML
+        n_u = 40 # numbers of layers of upper PML
+        m = 3  # Power of the PML (3 to 4), if too high, the sigma_max is too small
 
-        self.sigma_x[-hoogte_PML:, :] = [
-            [sigma_max_up * (i / len(self.sigma_x[-hoogte_PML:, :])) ** m] * self.sigma_x.shape[1] for i in
-            range(0, len(self.sigma_x[:hoogte_PML, :]), 1)]
-        self.sigma_y[:, :breedte_PML_links] = np.array(
-            [[sigma_max_left * (i / len(self.sigma_y[:breedte_PML_links, :])) ** m] * self.sigma_y.shape[0] for i in
-                range(len(self.sigma_y[:breedte_PML_links, :]), 0, -1)]).transpose()
-        self.sigma_y[:, breedte_PML_rechts:] = np.array(
-            [[sigma_max_right * (i / len(self.sigma_y[breedte_PML_rechts:, :])) ** m] * self.sigma_y.shape[0] for i in
-                range(0, self.sigma_y.shape[1] - breedte_PML_rechts, 1)]).transpose()
+        self.kap_x = np.zeros((self.nx, self.ny)) #damping in x direction
+        self.kap_y = np.zeros((self.nx, self.ny)) #damping in y direction
 
-        self.sigma_p_x[-hoogte_PML:, :] = [
-            [sigma_max_up * (i / len(self.sigma_p_x[-hoogte_PML:, :])) ** m] * self.sigma_p_x.shape[1] for i in
-            range(0, len(self.sigma_p_x[:hoogte_PML, :]), 1)]
-        self.sigma_p_y[:, :breedte_PML_links] = np.array(
-            [[sigma_max_left * (i / len(self.sigma_p_y[:breedte_PML_links, :])) ** m] * self.sigma_p_y.shape[0] for i in
-                range(len(self.sigma_p_y[:breedte_PML_links, :]), 0, -1)]).transpose()
-        self.sigma_p_y[:, breedte_PML_rechts:] = np.array(
-            [[sigma_max_right * (i / len(self.sigma_p_y[breedte_PML_rechts:, :])) ** m] * self.sigma_p_y.shape[0] for i
-                in
-                range(0, self.sigma_p_y.shape[1] - breedte_PML_rechts, 1)]).transpose()
+        PML_l = kap_max_l*np.power(np.arange(n_l,0,-1)/n_l,m) #left PML
+        PML_r = kap_max_r*np.power(np.arange(1,n_r+1,1)/n_r,m) #right PML
+        PML_u= kap_max_u*np.power(np.arange(1,n_u+1,1)/n_u,m) #upper PML
+
+        self.kap_y[:,:n_l] = np.add(PML_l.reshape((1,n_l)),np.zeros((self.nx,n_l))) #adding PML to kappa
+
+        self.kap_y[:,-n_r:] = np.add(PML_r.reshape((1,n_r)),np.zeros((self.nx,n_r))) #adding PML to kappa
+
+        self.kap_x[-n_u:,:] = np.add(PML_u.reshape((n_u,1)),np.zeros((n_u,self.ny))) #adding PML to kappa
+
+        self.kap_y_o = np.append(self.kap_y[:,:self.ny//2],self.kap_y[:,1+self.ny//2:],1) #Kappa for o_y, removing a middle column because the shape is different
         return self
 
     def fine_init(self):
@@ -203,7 +193,7 @@ class FDTD():
 
             bron = self.source(t)
             self.bront[it] = bron
-            prefactor = self.c*self.dt/(self.dx**2)
+            prefactor = self.c*(self.dt/self.dx**2)
             self.p[self.x_bron, self.y_bron] += bron*prefactor  # adding source term to propagation
             
             if not self.freefield:
@@ -226,13 +216,14 @@ class FDTD():
         return self
 
     def timestep(self):
-        self.ox[1:-1,:] -= (self.dt/self.dx) * (self.p[1:,:]-self.p[:-1,:])
-        self.oy[:,1:-1] -= (self.dt/self.dx) * (self.p[:,1:]-self.p[:,:-1])
+        self.ox[1:-1,:] = ((1-self.kap_x[1:,:]*self.dt/2)/(1+self.kap_x[1:,:]*self.dt/2))*self.ox[1:-1,:] - (self.dt/(self.dx*(1+self.kap_x[1:,:]*self.dt/2))) * (self.p[1:,:]-self.p[:-1,:])
+        self.oy[:,1:-1] = ((1-self.kap_y_o*self.dt/2)/(1+self.kap_y_o*self.dt/2))*self.oy[:,1:-1] - (self.dt/(self.dy*(1+self.kap_y_o*self.dt/2))) * (self.p[:,1:]-self.p[:,:-1])
 
         self.ox_x = (self.ox[1:, :] - self.ox[:-1, :]) / self.dx
         self.oy_y = (self.oy[:, 1:] - self.oy[:, :-1]) / self.dy
+
         self.hard_walls()
-        self.p -= (self.c ** 2) * self.dt * (self.ox_x + self.oy_y)
+        self.p = ((1-(self.kap_y+self.kap_x)*self.dt/2)/(1+(self.kap_y+self.kap_x)*self.dt/2))*self.p - (self.c ** 2) * self.dt * (self.ox_x/(1+self.kap_x*self.dt/2) + self.oy_y/(1+self.kap_y*self.dt/2))
         return self
     
     def timestep_fine(self):
@@ -258,11 +249,8 @@ class FDTD():
         return self
     
     def freefield_timestep(self):
-        self.p_y = (np.append(self.p, self.p[:, 0].reshape((self.nx, 1)), axis=1) - np.append(self.p[:, -1].reshape((self.nx, 1)), self.p, axis=1)) / self.dy
-        self.p_x = (np.append(self.p, self.p[0, :].reshape((1, self.ny)), axis=0) - np.append(self.p[-1, :].reshape((1, self.ny)), self.p, axis=0)) / self.dx
-
-        self.ox -= self.dt * self.p_x
-        self.oy -= self.dt * self.p_y
+        self.ox[1:-1,:] -= self.dt * (self.p[1:,:]-self.p[:-1,:])/self.dx
+        self.oy[:,1:-1] -= self.dt * (self.p[:,1:]-self.p[:,:-1])/self.dy
 
         self.ox_x = (self.ox[1:, :] - self.ox[:-1, :]) / self.dx
         self.oy_y = (self.oy[:, 1:] - self.oy[:, :-1]) / self.dy
@@ -394,16 +382,16 @@ class FDTD():
     def TF_thick(self,recorder_number):
         self.n = 1.5
         k_vec,_,_= self.k_vec()
-        theta_R = 2*np.pi - np.arctan([2/3,4/3,2])[recorder_number-1] # angle between recorder and sheet
-        theta_R_m = 2*np.pi - np.arctan([2/5,4/5,6/5])[recorder_number-1] # angle between recorder and mirror sheet
+        theta_R = 2*np.pi - np.pi/2- np.arctan([2/3,4/3,2])[recorder_number-1] # angle between recorder and sheet
+        theta_R_m = 2*np.pi- np.pi/2 - np.arctan([2/5,4/5,6/5])[recorder_number-1] # angle between recorder and mirror sheet
         theta_S, theta_S_m = (np.arctan(10/19),np.arctan(10/21)) # angle between source and sheet and mirror source
         a,a_m = (np.sqrt(1.9**2 + 1)*self.d,np.sqrt(2.1**2 + 1)*self.d) # distance from source to top of sheet and mirror source
         b = np.array([np.sqrt(1.5**2 + 1)*self.d,np.sqrt(1.5**2 + 4)*self.d,np.sqrt(1.5**2 + 9)*self.d])[recorder_number-1]  # distance from recorder to top of sheet
         b_m = np.array([np.sqrt(2.5**2 + 1)*self.d,np.sqrt(2.5**2 + 4)*self.d,np.sqrt(2.5**2 + 9)*self.d])[recorder_number-1]  # distance from recorder to top of mirror sheet
-        D_up = self.Diffraction(k_vec,theta_S,0,a,self.d)*self.Diffraction(k_vec,0,theta_R,self.d,b,order=2) # source diffraction 
-        D_m_up = self.Diffraction(k_vec,theta_S_m,0,a_m,self.d)*self.Diffraction(k_vec,0,theta_R,self.d,b,order=2)  # source reflection diffraction 
-        D_down = self.Diffraction(k_vec,theta_S,0,a,self.d)*self.Diffraction(k_vec,0,theta_R_m,self.d,b_m,order=2) # source diffraction at mirror wedge
-        D_m_down = self.Diffraction(k_vec,theta_S_m,0,a_m,self.d)*self.Diffraction(k_vec,0,theta_R_m,self.d,b_m,order=2) # source reflection diffraction at mirror wedge
+        D_up = self.Diffraction(k_vec,theta_S,self.n*np.pi,a,self.d)*self.Diffraction(k_vec,0,theta_R,self.d,b,order=2) # source diffraction 
+        D_m_up = self.Diffraction(k_vec,theta_S_m,self.n*np.pi,a_m,self.d)*self.Diffraction(k_vec,0,theta_R,self.d,b,order=2)  # source reflection diffraction 
+        D_down = self.Diffraction(k_vec,theta_S,self.n*np.pi,a,self.d)*self.Diffraction(k_vec,0,theta_R_m,self.d,b_m,order=2) # source diffraction at mirror wedge
+        D_m_down = self.Diffraction(k_vec,theta_S_m,self.n*np.pi,a_m,self.d)*self.Diffraction(k_vec,0,theta_R_m,self.d,b_m,order=2) # source reflection diffraction at mirror wedge
         TF = D_up + D_down + D_m_up + D_m_down
         return TF
 
