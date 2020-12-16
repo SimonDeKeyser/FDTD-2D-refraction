@@ -179,7 +179,7 @@ class FDTD():
 
             bron = self.source(t)
             self.bront[it] = bron
-            prefactor = self.c*(self.dt/self.dx**2)
+            prefactor = (self.c**2)*(self.dt/(self.dx**2))
             self.p[self.x_bron, self.y_bron] += bron*prefactor  # adding source term to propagation
             
             if not self.freefield:
@@ -366,7 +366,7 @@ class FDTD():
         self.n =(2*np.pi - 2*phi)/np.pi
         k_vec,_,_= self.k_vec()
         theta_R = 2*np.pi - phi- np.arctan([3/3,5/3,7/3])[recorder_number-1] # angle between recorder and sheet
-        theta_R_m = 2*np.pi - np.arctan([3/5,5/5,7/5])[recorder_number-1] # angle between recorder and mirror sheet
+        theta_R_m = 2*np.pi - phi - np.arctan([3/5,5/5,7/5])[recorder_number-1] # angle between recorder and mirror sheet
         theta_S, theta_S_m = (np.arctan(15/19)-phi,np.arctan(15/21)-phi) # angle between source and sheet and mirror source
         a,a_m = (np.sqrt(1.9**2 + 1.5**2)*self.d,np.sqrt(2.1**2 + 1.5**2)*self.d) # distance from source to top of sheet and mirror source
         b = np.array([np.sqrt(1.5**2 + 1.5**2)*self.d,np.sqrt(1.5**2 + 2.5**2)*self.d,np.sqrt(1.5**2 + 3.5**2)*self.d])[recorder_number-1]  # distance from recorder to top of sheet
@@ -382,14 +382,14 @@ class FDTD():
         k_vec,_,_ = self.k_vec()
         r = lambda i: np.sqrt((1+i)**2+(2/5)**2)*self.d
         r = r(recorder_number)
-        TF = hankel2(0,k_vec*r)*k_vec/4
+        TF = hankel2(0,k_vec*r)*k_vec*self.c/4
         return TF
 
     def TF_freefield_thick_triangle(self,recorder_number):
         k_vec,_,_ = self.k_vec()
         r = lambda i: np.sqrt((2+i)**2+(2/5)**2)*self.d
         r = r(recorder_number)
-        TF = hankel2(0,k_vec*r)*k_vec/4
+        TF = hankel2(0,k_vec*r)*k_vec*self.c/4
         return TF
 
     def TF_FDTD(self,recorder_number, recorders = [], source = []):
@@ -440,7 +440,7 @@ class FDTD():
 
         ax1 = plt.subplot(2,3,1)
         ax1.plot(time,source)
-        ax1.set_ylabel('Pressure [N/m^2]')
+        ax1.set_ylabel('Amplitude')
         ax1.set_xlabel('Time [s]')
         ax1.set_title('Source (t)')
         ax1.grid()
@@ -461,7 +461,7 @@ class FDTD():
 
         ax4 = plt.subplot(2,3,4)
         ax4.plot(time,recorder)
-        ax4.set_ylabel('Pressure [N/m^2]')
+        ax4.set_ylabel('Amplitude')
         ax4.set_xlabel('Time [s]')
         ax4.set_title('Recorder (t)')
         ax4.grid()
@@ -570,11 +570,11 @@ class FDTD():
         A_plus = lambda a: 2*np.cos((2*self.n*np.pi*N_plus(a)-a)/2)**2 # A+(a)
         A_min = lambda a: 2*np.cos((2*self.n*np.pi*N_min(a)-a)/2)**2 # A-(a)
         if self.obj== 'thick' and order == 1:
-            C2D = k_vec*hankel2(0,k_vec*a)/4
+            C2D = self.c*k_vec*hankel2(0,k_vec*a)/4
         elif self.obj== 'thick' and order == 2:
-            C2D = hankel2(0,k_vec*b)*hankel2(0,k_vec*a)/16
+            C2D = -hankel2(0,k_vec*b)*hankel2(0,k_vec*a)/16
         else:
-            C2D = k_vec*hankel2(0,k_vec*b)*hankel2(0,k_vec*a)/16 # Propagation factor 2D
+            C2D = -1j*self.c*k_vec*hankel2(0,k_vec*b)*hankel2(0,k_vec*a)/16 # Propagation factor 2D
         C = C2D*np.exp(1j*np.pi/4)/(2*self.n*np.sqrt(2*np.pi*k_vec)) # prefactor of diffraction coefficient
         D1 = self.cotg((np.pi-a_min)/(2*self.n))*self.F(k_vec*L*A_min(a_min)) # 1st term of diffraction coefficient
         D2 = self.cotg((np.pi-a_plus)/(2*self.n))*self.F(k_vec*L*A_min(a_plus)) # 2nd term of diffraction coefficient
