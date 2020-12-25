@@ -1,0 +1,22 @@
+def Diffraction(self,k_vec,theta_S,theta_R,a,b,order=1):
+    a_plus = theta_R + theta_S
+    a_min = theta_R - theta_S
+    L = (a*b)/(a+b) 
+    print('Condtion for GTD: kL = {}'.format(self.kd*L))
+    N_plus = lambda x: np.round((np.pi+x)/(2*np.pi*self.n)).astype(int) # N+, integer
+    N_min = lambda x: np.round(-(np.pi-x)/(2*np.pi*self.n)).astype(int) # N-, integer
+    A_plus = lambda x: 2*np.cos((2*self.n*np.pi*N_plus(x)-x)/2)**2 # A+(a)
+    A_min = lambda x: 2*np.cos((2*self.n*np.pi*N_min(x)-x)/2)**2 # A-(a)
+    if self.obj== 'thick' and order == 1:
+        C2D = self.c*k_vec*hankel2(0,k_vec*a)/4
+    elif self.obj== 'thick' and order == 2:
+        C2D = -hankel2(0,k_vec*b)*hankel2(0,k_vec*a)/16
+    else:
+        C2D = self.c*k_vec*hankel2(0,k_vec*a)*np.exp(-1j*k_vec*b)/(4*np.sqrt(b))# Propagation factor 2D
+    C = C2D*np.exp(1j*np.pi/4)/(2*self.n*np.sqrt(2*np.pi*k_vec)) # prefactor of diffraction coefficient
+    D1 = self.cotg((np.pi-a_min)/(2*self.n))*self.F(k_vec*L*A_min(a_min)) # 1st term of diffraction coefficient
+    D2 = self.cotg((np.pi-a_plus)/(2*self.n))*self.F(k_vec*L*A_min(a_plus)) # 2nd term of diffraction coefficient
+    D3 = self.cotg((np.pi+a_plus)/(2*self.n))*self.F(k_vec*L*A_plus(a_plus))# 3th term of diffraction coefficient
+    D4 = self.cotg((np.pi+a_min)/(2*self.n))*self.F(k_vec*L*A_plus(a_min)) # 4th term of diffraction coefficient
+    D = (D1 + D2 + D3 + D4)*C # D_11 look only at solutions 1 to start
+    return D
