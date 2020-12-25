@@ -5,6 +5,7 @@ import matplotlib.patches as patches
 from PIL import Image
 import scipy.special as sc
 from scipy.special import hankel2
+from scipy.special import hankel1
 import os
 
 class FDTD():
@@ -50,13 +51,13 @@ class FDTD():
         self.dy = self.dx
         self.d = 1  # lengte d
         self.k = self.kd / self.d  # wavenumber
-        self.npml = 40  # Extra layers around simulation domain
+        self.npml = 100  # Extra layers around simulation domain
         self.nx = self.npml + int(4 * self.d / self.dx)  # number of cells in x direction
         self.nd = int(self.d / self.dx)  # number of cells in d length
 
         ## SOURCE PARAMETERS
         self.fc = self.k * self.c / (2 * np.pi)
-        self.t0 = self.sigma*1e3
+        self.t0 = 1.5*self.sigma*1e3
 
         if self.obj in ['thin','freefield_thin']:
             self.L = 6 * self.d  # length of simulation domain
@@ -74,10 +75,10 @@ class FDTD():
 
     def PML_init(self):
         ## PML
-        kap_max_l = 3000  # Max amount of damping left
-        kap_max_r = 2800  # Max amount of damping right
-        kap_max_u = 2000  # Max amount of damping upward
-        layers = 40
+        kap_max_l = 3000 # Max amount of damping left
+        kap_max_r = 3000 # Max amount of damping right
+        kap_max_u = 3000 # Max amount of damping upward
+        layers = 100
         n_l = layers # numbers of layers of left PML
         n_r = layers #  numbers of layers of right PML
         n_u = layers # numbers of layers of upper PML
@@ -178,8 +179,10 @@ class FDTD():
             print('%d/%d' % (it, self.nt))
 
             bron = self.source(t)
-            self.bront[it] = bron
-            prefactor = (self.c**2)*(self.dt/(self.dx**2))
+            prefactor = (self.c**2)*(self.dt / (self.dx ** 2))
+            prefactor = 1
+            self.bront[it] = bron*prefactor*self.dt/(self.dx**2)
+
             self.p[self.x_bron, self.y_bron] += bron*prefactor  # adding source term to propagation
             
             if not self.freefield:
@@ -199,13 +202,26 @@ class FDTD():
         return self
 
     def timestep(self):
+
+
         self.ox[1:-1,:] = ((1-self.kap_x[1:,:]*self.dt/2)/(1+self.kap_x[1:,:]*self.dt/2))*self.ox[1:-1,:] - (self.dt/(self.dx*(1+self.kap_x[1:,:]*self.dt/2))) * (self.p[1:,:]-self.p[:-1,:])
         self.oy[:,1:-1] = ((1-self.kap_y_o*self.dt/2)/(1+self.kap_y_o*self.dt/2))*self.oy[:,1:-1] - (self.dt/(self.dy*(1+self.kap_y_o*self.dt/2))) * (self.p[:,1:]-self.p[:,:-1])
+
+        self.hard_walls()
+
+    
+
+
 
         self.ox_x = (self.ox[1:, :] - self.ox[:-1, :]) / self.dx
         self.oy_y = (self.oy[:, 1:] - self.oy[:, :-1]) / self.dy
 
-        self.hard_walls()
+
+
+
+
+
+
         self.p = ((1-(self.kap_y+self.kap_x)*self.dt/2)/(1+(self.kap_y+self.kap_x)*self.dt/2))*self.p - (self.c ** 2) * self.dt * (self.ox_x/(1+self.kap_x*self.dt/2) + self.oy_y/(1+self.kap_y*self.dt/2))
         return self
     
@@ -243,11 +259,16 @@ class FDTD():
     ## WALLS AND BOUNDARIES--------------------------------------
     def hard_walls(self):
         if self.obj == 'thin':
-            self.ox_x[:self.x_obj+1, self.y_obj] = 0 
-            self.oy_y[:self.x_obj+1, self.y_obj] = 0 
+            self.oy[:self.x_obj, self.y_obj] = 0
+
+
+
+
         elif self.obj == 'thick':
-            self.oy_y[:self.x_obj+1, self.y_obj:self.y_obj+self.obj_thickness] = 0 
-            self.ox_x[:self.x_obj+1, self.y_obj:self.y_obj+self.obj_thickness] = 0 
+            self.oy[:self.x_obj+1, self.y_obj:self.y_obj+self.obj_thickness] = 0
+            self.ox[:self.x_obj+1, self.y_obj:self.y_obj+self.obj_thickness] = 0
+
+
         elif self.obj == 'triangle':
             for i in range(0, int(self.nd / 2) + 1):
                 self.ox_x[: 4 * i+1, 2 * self.nd + i + self.npml] = 0  # half triangle
@@ -342,7 +363,7 @@ class FDTD():
         D_m_up = self.Diffraction(k_vec,theta_S_m,theta_R,a_m,b) # source reflection diffraction 
         D_down = self.Diffraction(k_vec,theta_S,theta_R_m,a,b_m) # source diffraction at mirror wedge
         D_m_down = self.Diffraction(k_vec,theta_S_m,theta_R_m,a_m,b_m) # source reflection diffraction at mirror wedge
-        TF = D_up + D_down + D_m_up + D_m_down
+        TF = (D_up + D_down + D_m_up + D_m_down)
         return TF
     
     def TF_thick(self,recorder_number):
@@ -375,14 +396,15 @@ class FDTD():
         D_m_up = self.Diffraction(k_vec,theta_S_m,theta_R,a_m,b) # source reflection diffraction 
         D_down = self.Diffraction(k_vec,theta_S,theta_R_m,a,b_m) # source diffraction at mirror wedge
         D_m_down = self.Diffraction(k_vec,theta_S_m,theta_R_m,a_m,b_m) # source reflection diffraction at mirror wedge
-        TF = D_up + D_down + D_m_up + D_m_down
+        TF = (D_up + D_down + D_m_up + D_m_down)
         return TF
 
     def TF_freefield_thin(self,recorder_number):
         k_vec,_,_ = self.k_vec()
         r = lambda i: np.sqrt((1+i)**2+(2/5)**2)*self.d
         r = r(recorder_number)
-        TF = hankel2(0,k_vec*r)*k_vec*self.c/4
+        TF = hankel2(0,k_vec*r)*k_vec/4
+
         return TF
 
     def TF_freefield_thick_triangle(self,recorder_number):
@@ -514,7 +536,7 @@ class FDTD():
             plt.show()
         else:
             ax1 = plt.subplot(2,2,1)
-            ax1.plot(k_vec*self.d,Amplratio)
+            ax1.loglog(k_vec*self.d,Amplratio)
             ax1.set_xlabel('kd')
             ax1.set_ylabel('Ratio')
             ax1.set_title('Amplitude ratio')
@@ -528,8 +550,8 @@ class FDTD():
             ax2.grid()
 
             ax3 = plt.subplot(2,2,3)
-            ax3.plot(k_vec*self.d,np.abs(TF_sim),label='FDTD')
-            ax3.plot(k_vec*self.d,np.abs(TF_ana),label='Analytical')
+            ax3.loglog(k_vec*self.d,np.abs(TF_sim),label='FDTD')
+            ax3.loglog(k_vec*self.d,np.abs(TF_ana),label='Analytical')
             ax3.set_ylabel('Amplitude')
             ax3.set_xlabel('kd')
             ax3.set_title('Comparison of amplitudes')
@@ -560,6 +582,8 @@ class FDTD():
     def cotg(self,x): # Cotangent with x in rads
         return sc.cotdg(np.rad2deg(x))
 
+
+    '''
     def Diffraction(self,k_vec,theta_S,theta_R,a,b,order=1):
         a_plus = theta_R + theta_S
         a_min = theta_R - theta_S
@@ -570,11 +594,11 @@ class FDTD():
         A_plus = lambda a: 2*np.cos((2*self.n*np.pi*N_plus(a)-a)/2)**2 # A+(a)
         A_min = lambda a: 2*np.cos((2*self.n*np.pi*N_min(a)-a)/2)**2 # A-(a)
         if self.obj== 'thick' and order == 1:
-            C2D = self.c*k_vec*hankel2(0,k_vec*a)/4
+            C2D = k_vec*hankel2(0,k_vec*a)/4
         elif self.obj== 'thick' and order == 2:
             C2D = -hankel2(0,k_vec*b)*hankel2(0,k_vec*a)/16
         else:
-            C2D = -1j*self.c*k_vec*hankel2(0,k_vec*b)*hankel2(0,k_vec*a)/16 # Propagation factor 2D
+            C2D = -1j*k_vec*hankel2(0,k_vec*b)*hankel2(0,k_vec*a)/16 # Propagation factor 2D
         C = C2D*np.exp(1j*np.pi/4)/(2*self.n*np.sqrt(2*np.pi*k_vec)) # prefactor of diffraction coefficient
         D1 = self.cotg((np.pi-a_min)/(2*self.n))*self.F(k_vec*L*A_min(a_min)) # 1st term of diffraction coefficient
         D2 = self.cotg((np.pi-a_plus)/(2*self.n))*self.F(k_vec*L*A_min(a_plus)) # 2nd term of diffraction coefficient
@@ -582,5 +606,33 @@ class FDTD():
         D4 = self.cotg((np.pi+a_min)/(2*self.n))*self.F(k_vec*L*A_plus(a_min)) # 4th term of diffraction coefficient
         D = (D1 + D2 + D3 + D4)*C # D_11 look only at solutions 1 to start
         return D
+    '''
 
+    def Diffraction(self, k_vec, theta_S, theta_R, a, b, order=1):
+        a_plus = theta_R + theta_S
+        a_min = theta_R - theta_S
+        L = (a * b) / (a + b)
+        print('Condtion for GTD: kL = {}'.format(self.kd * L))
+        N_plus = lambda x: np.round((np.pi + x) / (2 * np.pi * self.n)).astype(int)  # N+, integer
+        N_min = lambda x: np.round(-(np.pi - x) / (2 * np.pi * self.n)).astype(int)  # N-, integer
+        A_plus = lambda x: 2 * np.cos((2 * self.n * np.pi * N_plus(x) - x) / 2) ** 2  # A+(a)
+        A_min = lambda x: 2 * np.cos((2 * self.n * np.pi * N_min(x) - x) / 2) ** 2  # A-(a)
+        if self.obj == 'thick' and order == 1:
+            C2D = self.c * k_vec * hankel2(0, k_vec * a) / 4
+        elif self.obj == 'thick' and order == 2:
+            C2D = -hankel2(0, k_vec * b) * hankel2(0, k_vec * a) / 16
+        else:
+            C2D = k_vec*hankel2(0,k_vec*a)*np.exp(-1j*k_vec*b)/(np.sqrt(L))# Propagation factor 2D
+        C = C2D * np.exp(1j * np.pi / 4) / (
+                    2 * self.n * np.sqrt(2 * np.pi * k_vec))  # prefactor of diffraction coefficient
+        D1 = self.cotg((np.pi - a_min) / (2 * self.n)) * self.F(
+            k_vec * L * A_min(a_min))  # 1st term of diffraction coefficient
+        D2 = self.cotg((np.pi - a_plus) / (2 * self.n)) * self.F(
+            k_vec * L * A_min(a_plus))  # 2nd term of diffraction coefficient
+        D3 = self.cotg((np.pi + a_plus) / (2 * self.n)) * self.F(
+            k_vec * L * A_plus(a_plus))  # 3th term of diffraction coefficient
+        D4 = self.cotg((np.pi + a_min) / (2 * self.n)) * self.F(
+            k_vec * L * A_plus(a_min))  # 4th term of diffraction coefficient
+        D = (D1 + D2 + D3 + D4) * C  # D_11 look only at solutions 1 to start
+        return D
         
