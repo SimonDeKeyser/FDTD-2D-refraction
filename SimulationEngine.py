@@ -581,7 +581,6 @@ class FDTD():
             C2D = np.exp(-1j*k_vec*b)/(np.sqrt(b))
         else:
             C2D = k_vec*self.c*hankel2(0,k_vec*a)*np.exp(-1j*k_vec*b)/(4*np.sqrt(L))# Propagation factor 2D
-            #C2D = k_vec*np.exp(-1j*k_vec*(b+a))/(np.sqrt(L))# Propagation factor 2D
         C = C2D * np.exp(1j * np.pi / 4) / (
                     2 * self.n * np.sqrt(2 * np.pi * k_vec))  # prefactor of diffraction coefficient
         D1 = self.cotg((np.pi - a_min) / (2 * self.n)) * self.F(
