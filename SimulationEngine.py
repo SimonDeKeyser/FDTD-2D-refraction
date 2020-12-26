@@ -51,7 +51,7 @@ class FDTD():
         self.dy = self.dx
         self.d = 1  # lengte d
         self.k = self.kd / self.d  # wavenumber
-        self.npml = 100  # Extra layers around simulation domain
+        self.npml = 40  # Extra layers around simulation domain
         self.nx = self.npml + int(4 * self.d / self.dx)  # number of cells in x direction
         self.nd = int(self.d / self.dx)  # number of cells in d length
 
@@ -78,7 +78,7 @@ class FDTD():
         kap_max_l = 3000 # Max amount of damping left
         kap_max_r = 3000 # Max amount of damping right
         kap_max_u = 3000 # Max amount of damping upward
-        layers = 100
+        layers = self.npml
         n_l = layers # numbers of layers of left PML
         n_r = layers #  numbers of layers of right PML
         n_u = layers # numbers of layers of upper PML
@@ -301,7 +301,7 @@ class FDTD():
             self.ax.text(0.5, 1.05, '%d/%d' % (it, self.nt),
                     size=plt.rcParams["axes.titlesize"],
                     ha="center", transform=self.ax.transAxes),
-            self.ax.imshow(self.p, vmin=-0.02 * self.A, vmax=0.02 * self.A),
+            self.ax.imshow(self.p, vmin=-20 * self.A, vmax=20 * self.A),
             self.ax.plot(self.y_bron, self.x_bron, 'ks', fillstyle="none")[0],
             self.ax.plot(self.y_recorder1, self.x_recorder1, 'ro', fillstyle="none")[0],
             self.ax.plot(self.y_recorder2, self.x_recorder2, 'ro', fillstyle="none")[0],
@@ -496,16 +496,15 @@ class FDTD():
         else:
             TF_free = self.TF_freefield_thick_triangle(recorder_number)
 
-        Amplratio = np.abs((TF_sim-TF_free)/(TF_ana-TF_free))
+        Amplratio = np.abs(np.abs(TF_sim)-np.abs(TF_free))/np.abs(np.abs(TF_ana)-np.abs(TF_free))
         Amplratio =  1+((Amplratio-1)/self.kd)
         Phasediff = ((np.unwrap(np.angle(TF_sim-TF_free))) - (np.unwrap(np.angle(TF_ana-TF_free))))/self.kd
         if reportcompare == True:
             ax1 = plt.subplot(1,2,1)
-            ax1.plot(k_vec*self.d,Amplratio)
+            ax1.loglog(k_vec*self.d, Amplratio)
             ax1.set_xlabel('kd')
             ax1.set_ylabel('Ratio')
             ax1.set_title('Amplitude ratio')
-            ax1.set_ylim([0.9,1.1])
             ax1.grid()
 
             ax2 = plt.subplot(1,2,2)
@@ -513,7 +512,6 @@ class FDTD():
             ax2.set_xlabel('kd')
             ax2.set_ylabel('Difference')
             ax2.set_title('Phase difference')
-            ax2.set_ylim([-0.1,0.1])
             ax2.grid()
 
             plt.tight_layout()
@@ -555,6 +553,25 @@ class FDTD():
             plt.tight_layout()
             plt.show()
 
+    def recorder_comparison(self,recorders=[],source=[]):
+        for i in [1,2,3]:
+            TF = self.TF_FDTD(i,recorders=recorders,source=source)
+            TF_ana = self.TF_ANA(i)
+            k_vec, _, _ = self.k_vec()
+            if self.obj == 'thin':
+                TF_free = self.TF_freefield_thin(i)
+            else:
+                TF_free = self.TF_freefield_thick_triangle(i)
+            Amplratio = np.abs(np.abs(TF)-np.abs(TF_free))/np.abs(np.abs(TF_ana)-np.abs(TF_free))
+            Amplratio =  1+((Amplratio-1)/self.kd)
+            plt.plot(k_vec*self.d,Amplratio,label='Recorder {}'.format(i))
+        plt.xlabel('kd')
+        plt.ylim([0.75, 1.25])
+        plt.ylabel('Ratio')
+        plt.legend()
+        plt.grid()
+        plt.show()
+
     ## USEFUL FUNCTIONS------------------------------------------
     def F(self,x): # Fresnel coefficients
         S1,C1 = sc.fresnel(np.inf)
@@ -570,7 +587,7 @@ class FDTD():
         a_plus = theta_R + theta_S
         a_min = theta_R - theta_S
         L = (a * b) / (a + b)
-        print('Condtion for GTD: kL = {}'.format(self.kd * L))
+        print('Condtion for GTD: kL > 1 for L = {}'.format(L))
         N_plus = lambda x: np.round((np.pi + x) / (2 * np.pi * self.n)).astype(int)  # N+, integer
         N_min = lambda x: np.round(-(np.pi - x) / (2 * np.pi * self.n)).astype(int)  # N-, integer
         A_plus = lambda x: 2 * np.cos((2 * self.n * np.pi * N_plus(x) - x) / 2) ** 2  # A+(a)
