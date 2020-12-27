@@ -51,7 +51,7 @@ class FDTD():
         self.dy = self.dx
         self.d = 1  # lengte d
         self.k = self.kd / self.d  # wavenumber
-        self.npml = 40  # Extra layers around simulation domain
+        self.npml = 40 # Extra layers around simulation domain
         self.nx = self.npml + int(4 * self.d / self.dx)  # number of cells in x direction
         self.nd = int(self.d / self.dx)  # number of cells in d length
 
@@ -485,75 +485,45 @@ class FDTD():
         ax6.set_ylabel('Phase')
         ax6.set_title('Recorder phase (FFT)')
         ax6.grid()
-        plt.suptitle('Summarising time and fft plots for source and recorder')
+        plt.suptitle('Summarising time and fft plots for source and recorder {}'.format(recorder_number))
         plt.tight_layout()
         plt.show()
         
-    def FDTD_ana_comparison(self,recorder_number,TF_sim,TF_ana,reportcompare=False):
+    def TF_FDTD_ana(self,recorder_number,TF_sim,TF_ana,):
+        """
+        Plot the (relative) transfer function for a recorder
+        """
         k_vec, _, _ = self.k_vec()
         if self.obj == 'thin':
             TF_free = self.TF_freefield_thin(recorder_number)
         else:
             TF_free = self.TF_freefield_thick_triangle(recorder_number)
 
-        Amplratio = np.abs(np.abs(TF_sim)-np.abs(TF_free))/np.abs(np.abs(TF_ana)-np.abs(TF_free))
-        Amplratio =  1+((Amplratio-1)/self.kd)
-        Phasediff = ((np.unwrap(np.angle(TF_sim-TF_free))) - (np.unwrap(np.angle(TF_ana-TF_free))))/self.kd
-        if reportcompare == True:
-            ax1 = plt.subplot(1,2,1)
-            ax1.loglog(k_vec*self.d, Amplratio)
-            ax1.set_xlabel('kd')
-            ax1.set_ylabel('Ratio')
-            ax1.set_title('Amplitude ratio')
-            ax1.grid()
+        ax1 = plt.subplot(1,2,1)
+        ax1.plot(k_vec*self.d,20*np.log10(np.abs(TF_sim)/np.abs(TF_free)),label='FDTD')
+        ax1.plot(k_vec*self.d,20*np.log10(np.abs(TF_ana)/np.abs(TF_free)),label='ANA')
+        ax1.set_xlabel('kd')
+        ax1.set_ylabel('Relative amplitude (dB)')
+        ax1.set_title('Relative at recorder {}'.format(recorder_number))
+        ax1.grid()
+        ax1.legend()
 
-            ax2 = plt.subplot(1,2,2)
-            ax2.plot(k_vec*self.d,Phasediff)
-            ax2.set_xlabel('kd')
-            ax2.set_ylabel('Difference')
-            ax2.set_title('Phase difference')
-            ax2.grid()
+        ax2 = plt.subplot(1,2,2)
+        ax2.loglog(k_vec*self.d,np.abs(TF_sim),label='FDTD')
+        ax2.loglog(k_vec*self.d,np.abs(TF_ana),label='ANA')
+        ax2.set_xlabel('kd')
+        ax2.set_ylabel('Amplitude')
+        ax2.set_title('Absolute at recorder {}'.format(recorder_number))
+        ax2.grid()
+        ax2.legend()
 
-            plt.tight_layout()
-            plt.show()
-        else:
-            ax1 = plt.subplot(2,2,1)
-            ax1.loglog(k_vec*self.d,Amplratio)
-            ax1.set_xlabel('kd')
-            ax1.set_ylabel('Ratio')
-            ax1.set_title('Amplitude ratio')
-            ax1.grid()
+        plt.tight_layout()
+        plt.show()
 
-            ax2 = plt.subplot(2,2,2)
-            ax2.plot(k_vec*self.d,Phasediff)
-            ax2.set_xlabel('kd')
-            ax2.set_ylabel('Difference')
-            ax2.set_title('Phase difference')
-            ax2.grid()
-
-            ax3 = plt.subplot(2,2,3)
-            ax3.loglog(k_vec*self.d,np.abs(TF_sim),label='FDTD')
-            ax3.loglog(k_vec*self.d,np.abs(TF_ana),label='Analytical')
-            ax3.set_ylabel('Amplitude')
-            ax3.set_xlabel('kd')
-            ax3.set_title('Comparison of amplitudes')
-            ax3.grid()
-            ax3.legend()
-
-            ax4 = plt.subplot(2,2,4)
-            ax4.plot(k_vec*self.d,np.unwrap(np.angle(TF_sim)),label='FDTD')
-            ax4.plot(k_vec*self.d,np.unwrap(np.angle(TF_ana)),label='Analytical')
-            ax4.set_ylabel('Phase')
-            ax4.set_xlabel('kd')
-            ax4.set_title('Comparison of phases')
-            ax4.grid()
-            ax4.legend()
-
-            plt.suptitle('FDTD vs analytical transfer function at recorder: {} case, kd = {}'.format(self.obj,self.kd))
-            plt.tight_layout()
-            plt.show()
-
-    def recorder_comparison(self,recorders=[],source=[]):
+    def Report_allrecorders(self,recorders=[],source=[]):
+        """
+        Plot the relative transfer function for all recorders resp. 1, 2 ,3
+        """
         for i in [1,2,3]:
             TF = self.TF_FDTD(i,recorders=recorders,source=source)
             TF_ana = self.TF_ANA(i)
@@ -562,15 +532,13 @@ class FDTD():
                 TF_free = self.TF_freefield_thin(i)
             else:
                 TF_free = self.TF_freefield_thick_triangle(i)
-            Amplratio = np.abs(np.abs(TF)-np.abs(TF_free))/np.abs(np.abs(TF_ana)-np.abs(TF_free))
-            Amplratio =  1+((Amplratio-1)/self.kd)
-            plt.plot(k_vec*self.d,Amplratio,label='Recorder {}'.format(i))
-        plt.xlabel('kd')
-        plt.ylim([0.75, 1.25])
-        plt.ylabel('Ratio')
-        plt.legend()
-        plt.grid()
-        plt.show()
+            plt.plot(k_vec*self.d,20*np.log10(np.abs(TF)/np.abs(TF_free)),label='FDTD')
+            plt.plot(k_vec*self.d,20*np.log10(np.abs(TF_ana)/np.abs(TF_free)),label='Analytical'.format(i))
+            plt.xlabel('kd')
+            plt.ylabel('Relative amplitude (dB)')
+            plt.legend()
+            plt.grid()
+            plt.show()
 
     ## USEFUL FUNCTIONS------------------------------------------
     def F(self,x): # Fresnel coefficients
