@@ -51,7 +51,7 @@ class FDTD():
         self.dy = self.dx
         self.d = 1  # lengte d
         self.k = self.kd / self.d  # wavenumber
-        self.npml = 40 # Extra layers around simulation domain
+        self.npml = 40  # Extra layers around simulation domain
         self.nx = self.npml + int(4 * self.d / self.dx)  # number of cells in x direction
         self.nd = int(self.d / self.dx)  # number of cells in d length
 
@@ -62,13 +62,13 @@ class FDTD():
         if self.obj in ['thin','freefield_thin']:
             self.L = 6 * self.d  # length of simulation domain
             self.obj_thickness = 0
-            self.x_obj = int(2 * self.nd) # x-length of object
+            self.x_obj = int(2 * self.nd) # x-height of object
             self.y_obj = int(2 * self.nd) + self.npml # y coordinate of object
         else:
             self.L = 7 * self.d
             self.obj_thickness = self.nd
             if self.obj in ['thick','freefield_thick']:
-                self.x_obj = int(2 * self.nd) # x-length of object
+                self.x_obj = int(2 * self.nd) # x height of object
                 self.y_obj = int(2 * self.nd) + self.npml # y coordinate of object
 
         self.ny = 2 * self.npml + int(self.L / self.dy)  # number of cells in y direction
@@ -301,7 +301,7 @@ class FDTD():
             self.ax.text(0.5, 1.05, '%d/%d' % (it, self.nt),
                     size=plt.rcParams["axes.titlesize"],
                     ha="center", transform=self.ax.transAxes),
-            self.ax.imshow(self.p, vmin=-20 * self.A, vmax=20 * self.A),
+            self.ax.imshow(self.p, vmin=-0.02 * self.A, vmax=0.02 * self.A),
             self.ax.plot(self.y_bron, self.x_bron, 'ks', fillstyle="none")[0],
             self.ax.plot(self.y_recorder1, self.x_recorder1, 'ro', fillstyle="none")[0],
             self.ax.plot(self.y_recorder2, self.x_recorder2, 'ro', fillstyle="none")[0],
@@ -341,9 +341,9 @@ class FDTD():
         theta_R = 2*np.pi - np.arctan([2/3,4/3,2])[recorder_number-1] # angle between recorder and sheet
         theta_R_m = 2*np.pi - np.arctan([2/5,4/5,6/5])[recorder_number-1] # angle between recorder and mirror sheet
         theta_S, theta_S_m = (np.arctan(10/19),np.arctan(10/21)) # angle between source and sheet and mirror source
-        a,a_m = (np.sqrt(1.9**2 + 1)*self.d,np.sqrt(2.1**2 + 1)*self.d) # distance from source to top of sheet and mirror source
-        b = np.array([np.sqrt(1.5**2 + 1)*self.d,np.sqrt(1.5**2 + 4)*self.d,np.sqrt(1.5**2 + 9)*self.d])[recorder_number-1]  # distance from recorder to top of sheet
-        b_m = np.array([np.sqrt(2.5**2 + 1)*self.d,np.sqrt(2.5**2 + 4)*self.d,np.sqrt(2.5**2 + 9)*self.d])[recorder_number-1]  # distance from recorder to top of mirror sheet
+        a,a_m = (np.sqrt(1.9**2 + 1)*self.d,np.sqrt(2.1**2 + 1)*self.d ) # distance from source to top of sheet and mirror source
+        b = np.array([np.sqrt(1.5**2 + 1)*self.d ,np.sqrt(1.5**2 + 4)*self.d ,np.sqrt(1.5**2 + 9)*self.d ])[recorder_number-1]  # distance from recorder to top of sheet
+        b_m = np.array([np.sqrt(2.5**2 + 1)*self.d ,np.sqrt(2.5**2 + 4)*self.d ,np.sqrt(2.5**2 + 9)*self.d ])[recorder_number-1]  # distance from recorder to top of mirror sheet
         D_up = self.Diffraction(k_vec,theta_S,theta_R,a,b) # source diffraction 
         D_m_up = self.Diffraction(k_vec,theta_S_m,theta_R,a_m,b) # source reflection diffraction 
         D_down = self.Diffraction(k_vec,theta_S,theta_R_m,a,b_m) # source diffraction at mirror wedge
@@ -354,8 +354,8 @@ class FDTD():
     def TF_thick(self,recorder_number):
         self.n = 1.5
         k_vec,_,_= self.k_vec()
-        theta_R = 2*np.pi - np.pi/2- np.arctan([2/3,4/3,2])[recorder_number-1] # angle between recorder and sheet
-        theta_R_m = 2*np.pi- np.pi/2 - np.arctan([2/5,4/5,6/5])[recorder_number-1] # angle between recorder and mirror sheet
+        theta_R = self.n*np.pi - np.arctan([2/3,4/3,2])[recorder_number-1] # angle between recorder and sheet
+        theta_R_m = self.n*np.pi - np.arctan([2/5,4/5,6/5])[recorder_number-1] # angle between recorder and mirror sheet
         theta_S, theta_S_m = (np.arctan(10/19),np.arctan(10/21)) # angle between source and sheet and mirror source
         a,a_m = (np.sqrt(1.9**2 + 1)*self.d,np.sqrt(2.1**2 + 1)*self.d) # distance from source to top of sheet and mirror source
         b = np.array([np.sqrt(1.5**2 + 1)*self.d,np.sqrt(1.5**2 + 4)*self.d,np.sqrt(1.5**2 + 9)*self.d])[recorder_number-1]  # distance from recorder to top of sheet
@@ -485,61 +485,34 @@ class FDTD():
         ax6.set_ylabel('Phase')
         ax6.set_title('Recorder phase (FFT)')
         ax6.grid()
-        plt.suptitle('Summarising time and fft plots for source and recorder {}'.format(recorder_number))
+        plt.suptitle('Summarising time and fft plots for source and recorder')
         plt.tight_layout()
         plt.show()
         
-    def TF_FDTD_ana(self,recorder_number,TF_sim,TF_ana,):
-        """
-        Plot the (relative) transfer function for a recorder
-        """
+    def FDTD_ana_comparison(self,recorder_number,TF_sim,TF_ana,relative=True):
         k_vec, _, _ = self.k_vec()
         if self.obj == 'thin':
             TF_free = self.TF_freefield_thin(recorder_number)
         else:
             TF_free = self.TF_freefield_thick_triangle(recorder_number)
-
-        ax1 = plt.subplot(1,2,1)
-        ax1.plot(k_vec*self.d,20*np.log10(np.abs(TF_sim)/np.abs(TF_free)),label='FDTD')
-        ax1.plot(k_vec*self.d,20*np.log10(np.abs(TF_ana)/np.abs(TF_free)),label='ANA')
-        ax1.set_xlabel('kd')
-        ax1.set_ylabel('Relative amplitude (dB)')
-        ax1.set_title('Relative at recorder {}'.format(recorder_number))
-        ax1.grid()
-        ax1.legend()
-
-        ax2 = plt.subplot(1,2,2)
-        ax2.loglog(k_vec*self.d,np.abs(TF_sim),label='FDTD')
-        ax2.loglog(k_vec*self.d,np.abs(TF_ana),label='ANA')
-        ax2.set_xlabel('kd')
-        ax2.set_ylabel('Amplitude')
-        ax2.set_title('Absolute at recorder {}'.format(recorder_number))
-        ax2.grid()
-        ax2.legend()
-
-        plt.tight_layout()
-        plt.show()
-
-    def Report_allrecorders(self,recorders=[],source=[]):
-        """
-        Plot the relative transfer function for all recorders resp. 1, 2 ,3
-        """
-        for i in [1,2,3]:
-            TF = self.TF_FDTD(i,recorders=recorders,source=source)
-            TF_ana = self.TF_ANA(i)
-            k_vec, _, _ = self.k_vec()
-            if self.obj == 'thin':
-                TF_free = self.TF_freefield_thin(i)
-            else:
-                TF_free = self.TF_freefield_thick_triangle(i)
-            plt.plot(k_vec*self.d,20*np.log10(np.abs(TF)/np.abs(TF_free)),label='FDTD')
-            plt.plot(k_vec*self.d,20*np.log10(np.abs(TF_ana)/np.abs(TF_free)),label='Analytical'.format(i))
+        if relative:
+            plt.plot(k_vec*self.d,20*np.log10(np.abs(TF_sim)/np.abs(TF_free)),label='FDTD')
+            plt.plot(k_vec*self.d,20*np.log10(np.abs(TF_ana)/np.abs(TF_free)),label='ANA')
             plt.xlabel('kd')
             plt.ylabel('Relative amplitude (dB)')
-            plt.legend()
             plt.grid()
+            plt.legend()
+            plt.tight_layout()
             plt.show()
-
+        else:
+            plt.loglog(k_vec*self.d,np.abs(TF_sim),label='FDTD')
+            plt.loglog(k_vec*self.d,np.abs(TF_ana),label='ANA')
+            plt.xlabel('kd')
+            plt.ylabel('Amplitude')
+            plt.grid()
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
     ## USEFUL FUNCTIONS------------------------------------------
     def F(self,x): # Fresnel coefficients
         S1,C1 = sc.fresnel(np.inf)
@@ -555,7 +528,7 @@ class FDTD():
         a_plus = theta_R + theta_S
         a_min = theta_R - theta_S
         L = (a * b) / (a + b)
-        print('Condtion for GTD: kL > 1 for L = {}'.format(L))
+        print('Condtion for GTD: kL = {}'.format(self.kd * L))
         N_plus = lambda x: np.round((np.pi + x) / (2 * np.pi * self.n)).astype(int)  # N+, integer
         N_min = lambda x: np.round(-(np.pi - x) / (2 * np.pi * self.n)).astype(int)  # N-, integer
         A_plus = lambda x: 2 * np.cos((2 * self.n * np.pi * N_plus(x) - x) / 2) ** 2  # A+(a)
@@ -566,6 +539,7 @@ class FDTD():
             C2D = np.exp(-1j*k_vec*b)/(np.sqrt(b))
         else:
             C2D = k_vec*self.c*hankel2(0,k_vec*a)*np.exp(-1j*k_vec*b)/(4*np.sqrt(L))# Propagation factor 2D
+            #C2D = k_vec*np.exp(-1j*k_vec*(b+a))/(np.sqrt(L))# Propagation factor 2D
         C = C2D * np.exp(1j * np.pi / 4) / (
                     2 * self.n * np.sqrt(2 * np.pi * k_vec))  # prefactor of diffraction coefficient
         D1 = self.cotg((np.pi - a_min) / (2 * self.n)) * self.F(

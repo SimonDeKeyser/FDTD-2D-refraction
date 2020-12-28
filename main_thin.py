@@ -31,10 +31,6 @@ thin.time_fft_summary(recorder_number,recorders=recorders,source=source) #plot a
 # ANALYTICAL COMPARISON-----------------------------------
 TF_1 = thin.TF_FDTD(recorder_number,recorders=recorders,source=source)
 TF_ana_1 = thin.TF_ANA(recorder_number)
-
-thin.TF_FDTD_ana(recorder_number,TF_1,TF_ana_1) #plot a FDTD/analytical comparison
+thin.FDTD_ana_comparison(recorder_number,TF_1,TF_ana_1,relative=True) #plot a FDTD/analytical comparison
 
 print('RMS: {}'.format(np.sqrt(np.mean(np.square(np.abs(TF_1)-np.abs(TF_ana_1))/np.abs(TF_ana_1)))))
-
-# ALL RECORDERS-----------------------------------
-thin.Report_allrecorders(recorders=recorders,source=source)
