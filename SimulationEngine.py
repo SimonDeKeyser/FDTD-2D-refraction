@@ -301,7 +301,7 @@ class FDTD():
             self.ax.text(0.5, 1.05, '%d/%d' % (it, self.nt),
                     size=plt.rcParams["axes.titlesize"],
                     ha="center", transform=self.ax.transAxes),
-            self.ax.imshow(self.p, vmin=-0.02 * self.A, vmax=0.02 * self.A),
+            self.ax.imshow(self.p, vmin=-20 * self.A, vmax=20 * self.A),
             self.ax.plot(self.y_bron, self.x_bron, 'ks', fillstyle="none")[0],
             self.ax.plot(self.y_recorder1, self.x_recorder1, 'ro', fillstyle="none")[0],
             self.ax.plot(self.y_recorder2, self.x_recorder2, 'ro', fillstyle="none")[0],
@@ -528,7 +528,7 @@ class FDTD():
         a_plus = theta_R + theta_S
         a_min = theta_R - theta_S
         L = (a * b) / (a + b)
-        print('Condtion for GTD: kL = {}'.format(self.kd * L))
+        print('Condtion for GTD: kL > 1 for L = {}'.format(L))
         N_plus = lambda x: np.round((np.pi + x) / (2 * np.pi * self.n)).astype(int)  # N+, integer
         N_min = lambda x: np.round(-(np.pi - x) / (2 * np.pi * self.n)).astype(int)  # N-, integer
         A_plus = lambda x: 2 * np.cos((2 * self.n * np.pi * N_plus(x) - x) / 2) ** 2  # A+(a)
@@ -539,7 +539,6 @@ class FDTD():
             C2D = np.exp(-1j*k_vec*b)/(np.sqrt(b))
         else:
             C2D = k_vec*self.c*hankel2(0,k_vec*a)*np.exp(-1j*k_vec*b)/(4*np.sqrt(L))# Propagation factor 2D
-            #C2D = k_vec*np.exp(-1j*k_vec*(b+a))/(np.sqrt(L))# Propagation factor 2D
         C = C2D * np.exp(1j * np.pi / 4) / (
                     2 * self.n * np.sqrt(2 * np.pi * k_vec))  # prefactor of diffraction coefficient
         D1 = self.cotg((np.pi - a_min) / (2 * self.n)) * self.F(
