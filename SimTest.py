@@ -217,6 +217,25 @@ class FDTD():
         return self
 
     def timestep(self):
+        self.start_tri = 2 * self.nd + self.npml
+        self.end_tri = 3 * self.nd + self.npml
+        self.mid_tri = int(2.5 * self.nd + self.npml)
+        for y in range(int(self.nd / 2) + 1):  ### This one is triangle going up
+            for x in range(4):
+                self.p[x + 4 * y, y + self.start_tri] = self.p[x + 4 * y, y + self.start_tri] - (self.c ** 2 * self.dt / (self.V[x])) * (self.Axup[x] * self.ox[x + 4 * y + 1, y + self.start_tri]- self.Axdown[x] * self.ox[x + 4 * y, y + self.start_tri] - self.Ay[x] * self.oy[x + 4 * y, y + self.start_tri])
+                self.pref[x + 4 * y, y + self.start_tri] = self.p[x + 4 * y, y + self.start_tri]
+                self.p[x + 4 * y, y + self.start_tri + 1:self.mid_tri] = 0
+                self.oy[x + 4 * y, y + self.start_tri + 1:self.mid_tri] = 0
+                if x == 3:
+                    self.ox[x + 4 * y + 1, y + self.start_tri + 1:self.mid_tri] = 0
+        for y in range(int(self.nd / 2)):  ### This one is triangle going down
+            for x in range(4):
+                self.p[x + 4 * y, -y + self.end_tri] = self.p[x + 4 * y, -y + self.end_tri] - (self.c ** 2 * self.dt / (self.V[x])) * (self.Axup[x] * self.ox[x + 4 * y, -y + self.end_tri]- self.Axdown[x] * self.ox[x + 4 * y, -y + self.end_tri]+ self.Ay[x] * self.oy[x + 4 * y, -y + self.end_tri + 1])
+                self.pref[x + 4 * y, -y + self.end_tri] = self.p[x + 4 * y, -y + self.end_tri]
+                self.p[x + 4 * y, self.mid_tri: -y + self.end_tri] = 0
+                self.oy[x + 4 * y, self.mid_tri: -y + self.end_tri + 1] = 0
+                if x == 3:
+                    self.ox[x + 4 * y + 1, self.mid_tri: -y + self.end_tri + 1] = 0
         self.ox[1:-1, :] = ((1 - self.kap_x[1:, :] * self.dt / 2) / (1 + self.kap_x[1:, :] * self.dt / 2)) * self.ox[
                                                                                                              1:-1,
                                                                                                              :] - (
@@ -232,47 +251,10 @@ class FDTD():
 
         #self.p = ((1 - (self.kap_y + self.kap_x) * self.dt / 2) / (1 + (self.kap_y + self.kap_x) * self.dt / 2)) * self.p - (self.c ** 2) * self.dt * (self.ox_x / (1 + self.kap_x * self.dt / 2) + self.oy_y / (1 + self.kap_y * self.dt / 2))
 
-        self.start_tri = 2 * self.nd + self.npml
-        self.end_tri = 3 * self.nd + self.npml
-        self.mid_tri = int(2.5 * self.nd + self.npml)
-        for y in range(int(self.nd / 2) + 1):  ### This one is triangle going up
-            for x in range(4):
-                self.p[x + 4 * y, y + self.start_tri] = self.p[x + 4 * y, y + self.start_tri] - (self.c ** 2 * self.dt / (self.V[x])) * (self.Axup[x] * self.ox[x + 4 * y + 1, y + self.start_tri] - self.Axdown[x] * self.ox[x + 4 * y, y + self.start_tri] -self.Ay[x] * self.oy[x + 4 * y, y + self.start_tri])
-                self.pref[x + 4 * y, y + self.start_tri] = self.p[x + 4 * y, y + self.start_tri]
-                #self.p[x + 4 * y, y + self.start_tri + 1:self.mid_tri] = 0
-                #self.oy[x + 4 * y, y + self.start_tri + 1:self.mid_tri] = 0
-                #if x == 3:
-                    #self.ox[x + 4 * y, y + self.start_tri + 1:self.mid_tri] = 0
-                # self.p[x + 4*y, y+self.start_tri+1:self.mid_tri] -= 2
-                # self.p[x + 4 * y,y + self.start_tri] += 1
-        for y in range(int(self.nd / 2)):  ### This one is triangle going down
-            for x in range(4):
-                self.p[x + 4 * y, -y + self.end_tri] = self.p[x + 4 * y, -y + self.end_tri] - (self.c ** 2 * self.dt / (self.V[x])) * (self.Axup[x] * self.ox[
-                    x + 4 * y, -y + self.end_tri] - self.Axdown[x] * self.ox[x + 4 * y, -y + self.end_tri] + self.Ay[x] * self.oy[x + 4 * y, -y + self.end_tri+1])
-                self.pref[x + 4 * y, -y + self.end_tri] = self.p[x + 4 * y, -y + self.end_tri]
-                #self.p[x + 4 * y, self.mid_tri: -y + self.end_tri] = 0
-                #self.oy[x + 4 * y, self.mid_tri: -y + self.end_tri + 1] = 0
-                #if x == 3:
-                    #self.ox[x + 4 * y + 1, y + self.start_tri + 1:self.mid_tri] = 0
-
         self.p = ((1 - (self.kap_y + self.kap_x) * self.dt / 2) / (
                 1 + (self.kap_y + self.kap_x) * self.dt / 2)) * self.p - (self.c ** 2) * self.dt * (
                          self.ox_x / (1 + self.kap_x * self.dt / 2) + self.oy_y / (1 + self.kap_y * self.dt / 2))
 
-        for y in range(int(self.nd / 2) + 1):  ### This one is triangle going up
-            for x in range(4):
-                self.p[x + 4 * y, y + self.start_tri] = self.pref[x + 4 * y, y + self.start_tri]
-                self.p[x + 4 * y, y + self.start_tri+1:self.mid_tri] = 0
-                self.oy_y[x + 4 * y, y + self.start_tri + 1:self.mid_tri] = 0
-                if x == 3:
-                    self.ox_x[x + 4 * y + 1, y + self.start_tri + 1:self.mid_tri] = 0
-        for y in range(int(self.nd / 2)):  ### This one is triangle going down
-            for x in range(4):
-                self.p[x + 4 * y, -y + self.end_tri] = self.pref[x + 4 * y, -y + self.end_tri]
-                self.p[x + 4 * y, self.mid_tri: -y + self.end_tri] = 0
-                self.oy_y[x + 4 * y, self.mid_tri: -y + self.end_tri + 1] = 0
-                if x == 3:
-                    self.ox_x[x + 4 * y + 1, y + self.start_tri + 1:self.mid_tri] = 0
         self.pref = np.zeros((self.nx, self.ny))
         return self
 
