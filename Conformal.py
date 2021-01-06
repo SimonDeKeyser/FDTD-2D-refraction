@@ -1,3 +1,6 @@
+### If you want to run CONFORMAL: change "SimulationEngine" in main_triangle to "Conformal" ###
+
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import ArtistAnimation
