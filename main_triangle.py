@@ -1,4 +1,5 @@
 import numpy as np
+### If CONFORMAL: change SimulationEngine to Conformal here: ###
 from SimulationEngine import FDTD
 import matplotlib.pyplot as plt
 
