@@ -5,16 +5,20 @@ import matplotlib.pyplot as plt
 
 # PARAMETERS----------------------------------------------
 c = 340  # geluidssnelheid - speed of sound (wave speed)
-dx= 0.05
+dx = 0.05
+#dx= 0.04
+#dx = 0.03
 kd = 5
-kdmin = 0.1
-kdmax = 10
-CFL = 0.8  # Courant number
+kdmin = 1
+kdmax = 9
+CFL = 0.5
 dt = CFL / (c * np.sqrt((1 / dx ** 2) + (1 / dx ** 2)))  # time step
-nt = 320
+nt = 840
+#nt = 900
+#nt = 1020
 obj = 'triangle' # Object to simulate
-A = 1
-sigma = 1e-5/3
+A = 10
+sigma = (1e-5)
 source = (A,sigma) #source parameters: (A,Sigma)
 
 # RUN SIMULATION---------------------------------------------
